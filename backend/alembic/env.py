@@ -10,7 +10,12 @@ import os
 from dotenv import load_dotenv
 
 from app.models.base import Base
-from app.models import company, job_posting, job_posting_snapshot  # noqa: F401
+from app.models import (  # noqa: F401
+    candidate_profile,
+    company,
+    job_posting,
+    job_posting_snapshot,
+)
 
 load_dotenv("../.env")
 

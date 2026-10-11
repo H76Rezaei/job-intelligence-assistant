@@ -1,19 +1,5 @@
-import os
-
-os.environ["POSTGRES_DB"] = "jobintel_test"
-
-import pytest
-
-from app.database import SessionLocal
 from app.models.company import Company
 from app.repositories.company_repository import CompanyRepository
-
-
-@pytest.fixture
-def session():
-    with SessionLocal() as session:
-        yield session
-        session.rollback()
 
 
 def test_add_assigns_id(session):

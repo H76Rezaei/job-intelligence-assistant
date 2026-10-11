@@ -5,9 +5,7 @@ from sqlalchemy import pool
 
 from alembic import context
 
-import os
-
-from dotenv import load_dotenv
+from app.config import settings
 
 from app.models.base import Base
 from app.models import (  # noqa: F401
@@ -17,18 +15,11 @@ from app.models import (  # noqa: F401
     job_posting_snapshot,
 )
 
-load_dotenv("../.env")
-
-url = (
-    f"postgresql+psycopg://{os.environ['POSTGRES_USER']}:"
-    f"{os.environ['POSTGRES_PASSWORD']}@localhost:"
-    f"{os.environ['POSTGRES_PORT']}/{os.environ['POSTGRES_DB']}"
-)
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
-config.set_main_option("sqlalchemy.url", url)
+config.set_main_option("sqlalchemy.url", settings.database_url)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.

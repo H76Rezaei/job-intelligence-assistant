@@ -8,13 +8,20 @@ from fastapi.testclient import TestClient
 
 from app.database import SessionLocal, get_session
 from app.main import app
+from sqlalchemy.orm import Session
+
+from app.database import engine, get_session
 
 
 @pytest.fixture
 def session():
-    with SessionLocal() as session:
-        yield session
-        session.rollback()
+    connection = engine.connect()
+    outer_transaction = connection.begin()
+    session = Session(bind=connection, join_transaction_mode="create_savepoint")
+    yield session
+    session.close()
+    outer_transaction.rollback()
+    connection.close()
 
 
 @pytest.fixture

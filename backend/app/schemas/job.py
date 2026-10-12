@@ -19,3 +19,7 @@ class JobRead(BaseModel):
     first_seen_at: datetime
     last_seen_at: datetime
     company: CompanyRead
+
+class JobDetailRead(JobRead):
+    description: str | None
+    captured_at: datetime | None

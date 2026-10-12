@@ -20,3 +20,11 @@ class JobRepository:
             .order_by(JobPosting.last_seen_at.desc())
         )
         return list(self.session.scalars(stmt))
+    
+    def get(self, job_id: int) -> JobPosting | None:
+        stmt = (
+            select(JobPosting)
+            .options(selectinload(JobPosting.company))
+            .where(JobPosting.id == job_id)
+        )
+        return self.session.scalars(stmt).first()

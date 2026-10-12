@@ -10,4 +10,8 @@ flowchart LR
     API --> LLM[OpenAI API]
 ```
 
-This is the planned shape, not the current state. Only PostgreSQL exists today.
+This is the planned shape, not the current state.
+
+Implemented so far: PostgreSQL, SQLAlchemy models, Alembic migrations, and a
+FastAPI backend (jobs, candidate profile, applications). Not yet built:
+ingestion, the worker, the LLM and agent parts, and the React dashboard.

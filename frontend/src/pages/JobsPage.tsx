@@ -1,16 +1,22 @@
 import { useEffect, useState } from "react"
-import { apiGet } from "../api/client"
-import type { Job } from "../api/types"
+import { Link } from "react-router-dom"
+import { apiGet, errorMessage } from "../api/client"
+import type { Application, ApplicationStatus, Job } from "../api/types"
+import StatusBadge from "../components/StatusBadge"
 
 function JobsPage() {
   const [jobs, setJobs] = useState<Job[]>([])
+  const [statuses, setStatuses] = useState<Map<number, ApplicationStatus>>(new Map())
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    apiGet<Job[]>("/jobs")
-      .then(setJobs)
-      .catch((e) => setError(e.message))
+    Promise.all([apiGet<Job[]>("/jobs"), apiGet<Application[]>("/applications")])
+      .then(([jobList, applications]) => {
+        setJobs(jobList)
+        setStatuses(new Map(applications.map((a) => [a.job_posting.id, a.status])))
+      })
+      .catch((e) => setError(errorMessage(e)))
       .finally(() => setLoading(false))
   }, [])
 
@@ -28,23 +34,37 @@ function JobsPage() {
           <th>Company</th>
           <th>Location</th>
           <th>Work mode</th>
+          <th>My status</th>
           <th>Link</th>
         </tr>
       </thead>
       <tbody>
-        {jobs.map((job) => (
-          <tr key={job.id} className="border-b">
-            <td className="py-2">{job.title}</td>
-            <td>{job.company.name}</td>
-            <td>{job.location ?? "-"}</td>
-            <td>{job.work_mode ?? "-"}</td>
-            <td>
-              <a href={job.url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">
-                Open
-              </a>
-            </td>
-          </tr>
-        ))}
+        {jobs.map((job) => {
+          const status = statuses.get(job.id)
+          return (
+            <tr key={job.id} className="border-b">
+              <td className="py-2">
+                <Link to={`/jobs/${job.id}`} className="text-blue-600 hover:underline">
+                  {job.title}
+                </Link>
+              </td>
+              <td>{job.company.name}</td>
+              <td>{job.location ?? "-"}</td>
+              <td>{job.work_mode ?? "-"}</td>
+              <td>{status ? <StatusBadge status={status} /> : "-"}</td>
+              <td>
+                <a
+                  href={job.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-blue-600 hover:underline"
+                >
+                  Open
+                </a>
+              </td>
+            </tr>
+          )
+        })}
       </tbody>
     </table>
   )

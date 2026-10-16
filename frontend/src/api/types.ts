@@ -23,3 +23,53 @@ export interface Job {
   last_seen_at: string
   company: Company
 }
+
+export interface JobDetail extends Job {
+  description: string | null
+  captured_at: string | null
+}
+
+export const APPLICATION_STATUSES = [
+  "interested",
+  "not_interested",
+  "applied",
+  "interview",
+  "rejected",
+  "offer",
+] as const
+
+export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number]
+
+export const STATUS_LABELS: Record<ApplicationStatus, string> = {
+  interested: "Interested",
+  not_interested: "Not interested",
+  applied: "Applied",
+  interview: "Interview",
+  rejected: "Rejected",
+  offer: "Offer",
+}
+
+export interface Application {
+  id: number
+  status: ApplicationStatus
+  notes: string | null
+  snapshot_id: number
+  created_at: string
+  updated_at: string
+  job_posting: Job
+}
+
+export interface Profile {
+  id: number
+  full_name: string
+  headline: string | null
+  summary: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ProfileInput {
+  full_name: string
+  headline: string | null
+  summary: string | null
+}

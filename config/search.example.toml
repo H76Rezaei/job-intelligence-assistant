@@ -1,0 +1,25 @@
+# Example search settings with made-up values.
+# Copy this file to config/search.toml (ignored by git) and put your own search there.
+# Another path can be set with the SEARCH_SETTINGS_PATH environment variable.
+
+# Single words or short exact phrases. Multi-word phrases match strictly in the
+# Bundesagentur search: "Python Entwickler" can return nothing where "Python" finds dozens.
+keywords = ["Python", "Backend"]
+
+# Also search for fully remote jobs anywhere in Germany
+remote_germany = true
+
+# A job not seen for this many days counts as reopened
+reopen_after_days = 60
+
+# Upper limit of requests to a source in one run
+max_requests_per_run = 300
+
+# Search around each center within its radius
+[[centers]]
+name = "Köln"
+radius_km = 30
+
+[[centers]]
+name = "Leipzig"
+radius_km = 25

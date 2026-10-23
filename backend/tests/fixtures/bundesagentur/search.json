@@ -1,0 +1,75 @@
+{
+  "ergebnisliste": [
+    {
+      "stellenangebotsart": "ARBEIT",
+      "stellenangebotsTitel": "Python Entwickler (m/w/d)",
+      "arbeitszeitVollzeit": true,
+      "stellenlokationen": [
+        {
+          "adresse": {
+            "plz": "00000",
+            "ort": "Testhausen",
+            "region": "TESTREGION",
+            "land": "DEUTSCHLAND"
+          }
+        }
+      ],
+      "homeofficemoeglich": true,
+      "homeofficetyp": "NACH_VEREINBARUNG",
+      "datumErsteVeroeffentlichung": "2026-10-21",
+      "aenderungsdatum": "2026-10-21T18:43:29.993",
+      "firma": "Beispiel Software GmbH",
+      "referenznummer": "10000-0000000001-S",
+      "entfernung": 3
+    },
+    {
+      "stellenangebotsart": "ARBEIT",
+      "stellenangebotsTitel": "Backend Engineer Python (remote)",
+      "arbeitszeitVollzeit": false,
+      "arbeitszeitTeilzeitFlexibel": true,
+      "stellenlokationen": [
+        {
+          "adresse": {
+            "plz": "00000",
+            "ort": "Musterstadt",
+            "region": "TESTREGION",
+            "land": "DEUTSCHLAND"
+          }
+        }
+      ],
+      "homeofficemoeglich": true,
+      "homeofficetyp": "ANGABE_IN_PROZENT",
+      "homeofficeprozent": 100,
+      "datumErsteVeroeffentlichung": "2026-10-22",
+      "aenderungsdatum": "2026-10-22T09:00:00.000",
+      "firma": "Muster Daten AG",
+      "referenznummer": "10000-0000000002-S",
+      "externeURL": "https://board.example/jobs/2"
+    },
+    {
+      "stellenangebotsart": "ARBEIT",
+      "stellenangebotsTitel": "Python Developer",
+      "arbeitszeitVollzeit": true,
+      "stellenlokationen": [
+        {
+          "adresse": {
+            "ort": "Amsterdam",
+            "land": "NIEDERLANDE"
+          }
+        }
+      ],
+      "homeofficemoeglich": false,
+      "datumErsteVeroeffentlichung": "2026-10-20",
+      "aenderungsdatum": "2026-10-20T08:00:00.000",
+      "firma": "Voorbeeld B.V.",
+      "referenznummer": "10000-0000000003-S"
+    }
+  ],
+  "maxErgebnisse": 3,
+  "page": 1,
+  "size": 100,
+  "woOutput": {
+    "bereinigterOrt": "Testhausen",
+    "suchmodus": "UMKREISSUCHE"
+  }
+}

@@ -16,6 +16,7 @@ from app.models import (  # noqa: F401
     job_posting,
     job_posting_snapshot,
     job_posting_source,
+    ingestion_run,
 )
 
 # this is the Alembic Config object, which provides

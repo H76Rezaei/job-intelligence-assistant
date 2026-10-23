@@ -1,0 +1,21 @@
+{
+  "stellenangebotsart": "ARBEIT",
+  "stellenangebotsTitel": "Python Entwickler (m/w/d)",
+  "stellenangebotsBeschreibung": "Wir suchen eine:n Python Entwickler:in.\n\n**Aufgaben**\n- APIs mit FastAPI bauen\n- Datenpipelines betreiben",
+  "arbeitszeitVollzeit": true,
+  "stellenlokationen": [
+    {
+      "adresse": {
+        "ort": "Testhausen",
+        "region": "TESTREGION",
+        "land": "DEUTSCHLAND"
+      }
+    }
+  ],
+  "homeofficemoeglich": true,
+  "homeofficetyp": "NACH_VEREINBARUNG",
+  "datumErsteVeroeffentlichung": "2026-10-21",
+  "aenderungsdatum": "2026-10-21T18:43:29.993",
+  "firma": "Beispiel Software GmbH",
+  "referenznummer": "10000-0000000001-S"
+}

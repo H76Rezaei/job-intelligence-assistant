@@ -12,4 +12,6 @@
 - [ ] `veroeffentlichtseit` is the days since the last successful run of this source plus one day; 7 days when there is no previous run
 - [ ] If the reported place (`woOutput.bereinigterOrt`) does not match the configured center, that query is skipped and a warning is logged; nearby towns within the radius are still stored
 - [ ] The example settings file lists two made-up centers (for example Köln 30 km and Leipzig 25 km), never the real ones
+- [ ] Jobs from the remote search that have no location get country "DE" from the adapter, so ingestion keeps them
+- [ ] The ingest command accepts settings with no centers when the remote search is on (today it requires a center)
 - [ ] Seam 2 tests cover the query matrix, the remote search parameters, paging, merging by `referenznummer`, the window and the place check

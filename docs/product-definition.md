@@ -21,7 +21,7 @@ Ingestion (Bundesagentur, paste, collectors) -> Matching the same job across sou
 
 1. PostgreSQL and core models (done)
 2. Ingestion from the Bundesagentur plus a paste import
-3. Daily collectors for LinkedIn, StepStone and get-in-IT in a private repo
+3. Daily collectors for LinkedIn, StepStone, Xing and get-in-IT in a private repo
 4. Profile with evidence for every skill
 5. Requirement extraction and a fit score shown at or above 50%, with a breakdown
 6. CV and cover letter drafts in Word and PDF, in the posting's language

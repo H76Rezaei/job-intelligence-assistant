@@ -4,7 +4,7 @@
 flowchart LR
     BA[Bundesagentur API] --> Ingest[Ingestion command]
     Paste[Paste form] --> API
-    Collectors[Private collectors<br/>LinkedIn, StepStone, get-in-IT] -.Step 3.-> Ingest
+    Collectors[Private collectors<br/>LinkedIn, StepStone, Xing, get-in-IT] -.Step 3.-> Ingest
     Ingest --> DB[(PostgreSQL)]
     API[FastAPI backend] <--> DB
     UI[React dashboard] --> API

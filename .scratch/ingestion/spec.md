@@ -75,7 +75,7 @@ A command I start myself fetches recent postings from the Bundesagentur für Arb
 - `Company` gains a cleaned-up name column with a unique constraint. Lookup is by cleaned-up name. The stored display name is the first full name seen and is never overwritten.
 - `JobPosting` gains a cleaned-up title column, with a unique constraint on (company, cleaned title). Its existing `url`, `location`, `first_seen_at` and `last_seen_at` stay: `url` and `location` hold the first values seen, and `last_seen_at` is updated whenever any source sees the job.
 - `JobPosting` gains a reference to the ingestion run in which it was last new (created or reopened). This drives the "new in last run" filter and badge.
-- New table `job_posting_sources`: job posting, source name (`bundesagentur`, `paste`, later `linkedin`, `stepstone`, `get_in_it`), source ID, URL, first seen at. Unique on (source name, source ID).
+- New table `job_posting_sources`: job posting, source name (`bundesagentur`, `paste`, later `linkedin`, `stepstone`, `xing`, `get_in_it`), source ID, URL, first seen at. Unique on (source name, source ID).
 - `JobPostingSnapshot` gains a JSONB raw data column holding the source's raw data for that version (for paste: the submitted form). Snapshots are never deleted.
 - New table `ingestion_runs`: started at, finished at, and counts per source as JSON (fetched, new, reopened, known, skipped non-Germany, skipped by cap, failed with error message).
 - Existing rows get cleaned-up keys computed in the migration. They get no source rows.
@@ -132,7 +132,7 @@ A command I start myself fetches recent postings from the Bundesagentur für Arb
 
 ## Out of Scope
 
-- Collectors for LinkedIn, StepStone and get-in-IT (Step 3).
+- Collectors for LinkedIn, StepStone, Xing and get-in-IT (Step 3).
 - Detecting closed jobs.
 - A scheduled daily run, the run report page and deployment (Step 7).
 - Re-fetching or versioning edits to postings already stored.

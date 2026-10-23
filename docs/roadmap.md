@@ -48,13 +48,13 @@ Seven steps, in this order. The weeks are a rough guess at 10 hours a week, and 
 | --- | --- | --- |
 | 1 | Claude Code installed, skills and `CLAUDE.md` set up, tickets as local files, clear README, outdated docs fixed | 1 |
 | 2 | Ingestion: Bundesagentur jobs stored daily by one command, paste import for jobs you find yourself | 2 |
-| 3 | Collectors for LinkedIn, StepStone and get-in-IT in a private repo, tested on Azure with a fallback | 4 |
+| 3 | Collectors for LinkedIn, StepStone, Xing and get-in-IT in a private repo, tested on Azure with a fallback | 5 |
 | 4 | Your profile with evidence for every skill | 1.5 |
 | 5 | Requirement extraction and the 50% fit score, with a visible breakdown | 2 |
 | 6 | Tailored CV and cover letter drafts in Word and PDF | 2 |
 | 7 | Daily schedule and deployment on Azure | 2 |
 
-About 14 weeks in total. You can start using the app for real after Step 2, and after Step 3 it fills itself with jobs from several sources.
+About 15 weeks in total. You can start using the app for real after Step 2, and after Step 3 it fills itself with jobs from several sources.
 
 ## Steps 1 to 3: setup, ingestion, collectors
 
@@ -83,9 +83,9 @@ Ingestion means pulling postings from an outside source into your own database, 
 
 **Decided (23 Oct 2026):** what counts as the same job, and raw data is kept as JSON on each snapshot, forever.
 
-### Step 3: Collectors (LinkedIn, StepStone, get-in-IT)
+### Step 3: Collectors (LinkedIn, StepStone, Xing, get-in-IT)
 
-1. Build collectors that read public job pages without a login, in this order: LinkedIn, StepStone, get-in-IT. They are adapters in a separate private repo that the app loads when it is present.
+1. Build collectors that read public job pages without a login, in this order: LinkedIn, StepStone, Xing, get-in-IT. They are adapters in a separate private repo that the app loads when it is present.
 2. Before building each one, test the live site: blocking, terms and page structure.
 3. Low volume, one run a day each, and results go through the same storage and duplicate checks as every other source.
 4. Test them on Azure first. If a site blocks Azure addresses, run the same adapter on your own computer on a schedule and send the results to the app.
@@ -191,6 +191,7 @@ Discovery is plain scheduled code that calls source APIs. The Bundesagentur alon
 | Manual paste import | Step 2 | Any job you find yourself, including Indeed results from a Claude chat |
 | LinkedIn collector | Step 3 | Public pages, no login, private repo. Against LinkedIn's terms, and cloud addresses may be blocked |
 | StepStone collector | Step 3 | No public API. Public pages, private repo. Its terms forbid scraping |
+| Xing collector | Step 3 | No public job API for your own app known (unconfirmed). Public pages, private repo. Terms to be checked |
 | get-in-IT collector | Step 3 | No public API known. Some of its jobs already arrive through the Bundesagentur. Terms to be checked |
 | [Arbeitnow](https://www.arbeitnow.com/blog/job-board-api) | Later | Free, no key. Fields and terms unconfirmed |
 | freehire.me | Later | Public JSON API, tech-first, third-party hosted. Germany coverage to be tested |
@@ -208,7 +209,7 @@ Three risks need your attention. The rest is routine.
 
 | Risk | What could happen | What we do |
 | --- | --- | --- |
-| LinkedIn, StepStone, get-in-IT | Scraping breaks LinkedIn's and StepStone's terms. The pages can change or block requests without notice, and cloud addresses are likely to be blocked faster than a home connection (expected, not verified) | Private repo for the adapters, no login, low volume, once a day, fallback on your computer. The rest of the app works without them |
+| LinkedIn, StepStone, Xing, get-in-IT | Scraping breaks LinkedIn's and StepStone's terms; Xing's and get-in-IT's are still to be checked. The pages can change or block requests without notice, and cloud addresses are likely to be blocked faster than a home connection (expected, not verified) | Private repo for the adapters, no login, low volume, once a day, fallback on your computer. The rest of the app works without them |
 | Azure student plan | Credit ends after 12 months, renewal needs student status, use is limited to non-commercial work | Know the end date, keep the app single-user, decide before the credit runs out whether to move to pay-as-you-go |
 | Bundesagentur API | Unofficial interface that changed field names in Aug 2026. The [portal terms](https://www.arbeitsagentur.de/nutzungsbedingungen) (§2a(3), 8 Jul 2026) forbid robots and using its interfaces against the BA's intended purpose for data collection | Personal use only, runs you start yourself, a hard cap on requests per run. Paste import is the fallback if access breaks or is blocked |
 
@@ -247,7 +248,7 @@ Nothing under Later has a date. Each item starts after Step 7, or earlier if dai
 
 | Decision | Needed in |
 | --- | --- |
-| Your search settings for LinkedIn, StepStone and get-in-IT | Step 3 |
+| Your search settings for LinkedIn, StepStone, Xing and get-in-IT | Step 3 |
 | Evidence detail and skill naming | Step 4 |
 | Weights for Partial and Risk items, extraction prompt | Step 5 |
 | CV layout and cover letter instructions | Step 6 |
@@ -272,13 +273,13 @@ Nothing under Later has a date. Each item starts after Step 7, or earlier if dai
 | 23 Oct 2026 | Only jobs not yet in the database are fetched in full. Edits to known jobs are ignored. A job unseen for 60 days counts as reopened. No closure detection yet |
 | 23 Oct 2026 | Raw source JSON on every snapshot, kept forever. Ingestion runs recorded in `ingestion_runs`, with a "new in last run" filter on the Jobs page |
 | 23 Oct 2026 | Several search centers, each with its own radius, plus Germany-wide remote. Settings in `config/search.toml`, not in the repo |
-| 23 Oct 2026 | Step 3 becomes collectors for LinkedIn, StepStone and get-in-IT, once a day each, in the private repo |
+| 23 Oct 2026 | Step 3 becomes collectors for LinkedIn, StepStone, Xing and get-in-IT, once a day each, in the private repo |
 
 ## Definition of done
 
 The project is done when you use it every morning and can explain how it is designed.
 
-- New jobs arrive daily from the Bundesagentur, LinkedIn, StepStone and get-in-IT (or the fallback on your computer), plus any job you paste, and reruns never create duplicates.
+- New jobs arrive daily from the Bundesagentur, LinkedIn, StepStone, Xing and get-in-IT (or the fallback on your computer), plus any job you paste, and reruns never create duplicates.
 - Only jobs at or above your threshold are shown, and you can see exactly why each got its score.
 - The exact job text used for an application is preserved.
 - CV and cover letter drafts use only your real evidence, flag what is unsupported, and every version is stored.

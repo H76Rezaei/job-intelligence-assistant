@@ -37,7 +37,7 @@ def run_ingestion(
     run = runs.add(IngestionRun(counts={}))
 
     run.counts = {
-        source.name: asdict(_ingest_source(session, settings, source, windows[source.name]))
+        source.name: asdict(_ingest_source(session, settings, source, windows[source.name], run.id))
         for source in sources
     }
     run.finished_at = func.now()
@@ -56,7 +56,11 @@ def _window_days(runs: IngestionRunRepository, source: str) -> int:
 
 
 def _ingest_source(
-    session: Session, settings: SearchSettings, source: Source, window_days: int
+    session: Session,
+    settings: SearchSettings,
+    source: Source,
+    window_days: int,
+    run_id: int,
 ) -> SourceCounts:
     counts = SourceCounts()
     # A savepoint per source: if the source itself fails, none of its writes are kept
@@ -77,7 +81,7 @@ def _ingest_source(
                     log.exception("Details for %s %s failed", source.name, fetched.source_id)
                     counts.detail_errors += 1
                     continue
-                store_job(session, source.name, detailed)
+                store_job(session, source.name, detailed, run_id)
                 counts.new += 1
         savepoint.commit()
     except Exception as error:

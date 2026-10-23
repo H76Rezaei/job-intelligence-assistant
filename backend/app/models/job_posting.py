@@ -49,6 +49,10 @@ class JobPosting(Base):
     last_seen_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+    # The ingestion run that found this job; drives "new in last run"
+    new_in_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("ingestion_runs.id"), index=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

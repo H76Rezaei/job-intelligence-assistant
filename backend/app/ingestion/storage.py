@@ -45,8 +45,13 @@ def find_existing_job(session: Session, source: str, fetched: FetchedJob) -> Job
     )
 
 
-def store_job(session: Session, source: str, fetched: FetchedJob) -> StoredJob:
-    """Store a fetched job, or attach it to the job we already have."""
+def store_job(
+    session: Session, source: str, fetched: FetchedJob, run_id: int | None = None
+) -> StoredJob:
+    """Store a fetched job, or attach it to the job we already have.
+
+    A job created by an ingestion run is marked new in that run.
+    """
     job = find_existing_job(session, source, fetched)
     created = job is None
 
@@ -59,6 +64,7 @@ def store_job(session: Session, source: str, fetched: FetchedJob) -> StoredJob:
                 employment_type=fetched.employment_type,
                 work_mode=fetched.work_mode,
                 url=fetched.url,
+                new_in_run_id=run_id,
             )
         )
     else:

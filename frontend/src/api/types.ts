@@ -31,7 +31,12 @@ export interface JobSource {
   first_seen_at: string
 }
 
-export interface JobDetail extends Job {
+// Jobs as listed: "new" means found by the latest ingestion run
+export interface JobListItem extends Job {
+  is_new: boolean
+}
+
+export interface JobDetail extends JobListItem {
   description: string | null
   captured_at: string | null
   sources: JobSource[]

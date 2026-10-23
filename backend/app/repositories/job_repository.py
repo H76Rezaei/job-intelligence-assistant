@@ -13,12 +13,14 @@ class JobRepository:
         self.session.flush()
         return job
 
-    def list_all(self) -> list[JobPosting]:
+    def list_all(self, new_in_run_id: int | None = None) -> list[JobPosting]:
         stmt = (
             select(JobPosting)
             .options(selectinload(JobPosting.company))
             .order_by(JobPosting.last_seen_at.desc())
         )
+        if new_in_run_id is not None:
+            stmt = stmt.where(JobPosting.new_in_run_id == new_in_run_id)
         return list(self.session.scalars(stmt))
     
     def get(self, job_id: int) -> JobPosting | None:

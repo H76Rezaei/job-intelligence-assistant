@@ -38,7 +38,11 @@ class JobRead(BaseModel):
     last_seen_at: datetime
     company: CompanyRead
 
-class JobDetailRead(JobRead):
+class JobListRead(JobRead):
+    is_new: bool
+
+
+class JobDetailRead(JobListRead):
     description: str | None
     captured_at: datetime | None
     sources: list[JobSourceRead]

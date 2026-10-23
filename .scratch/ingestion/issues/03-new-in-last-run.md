@@ -4,10 +4,10 @@
 
 **Blocked by:** 02
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Each job posting references the ingestion run in which it was last new (created by that run)
-- [ ] `GET /jobs` returns an `is_new` flag per job (new in the latest run) and accepts an optional `new_in_last_run` filter
-- [ ] Pasted jobs are not marked new
-- [ ] Jobs page has a "New in last run" toggle and shows a "new" badge on new jobs
-- [ ] API tests cover the flag and the filter across two runs
+- [x] Each job posting references the ingestion run in which it was last new (created by that run)
+- [x] `GET /jobs` returns an `is_new` flag per job (new in the latest run) and accepts an optional `new_in_last_run` filter
+- [x] Pasted jobs are not marked new
+- [x] Jobs page has a "New in last run" toggle and shows a "new" badge on new jobs
+- [x] API tests cover the flag and the filter across two runs

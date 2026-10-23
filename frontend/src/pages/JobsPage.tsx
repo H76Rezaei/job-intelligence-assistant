@@ -1,24 +1,35 @@
 import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import { apiGet, errorMessage } from "../api/client"
-import type { Application, ApplicationStatus, Job } from "../api/types"
+import type { Application, ApplicationStatus, JobListItem } from "../api/types"
 import StatusBadge from "../components/StatusBadge"
 
 function JobsPage() {
-  const [jobs, setJobs] = useState<Job[]>([])
+  const [jobs, setJobs] = useState<JobListItem[]>([])
+  const [onlyNew, setOnlyNew] = useState(false)
   const [statuses, setStatuses] = useState<Map<number, ApplicationStatus>>(new Map())
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  function toggleOnlyNew(checked: boolean) {
+    setOnlyNew(checked)
+    setLoading(true)
+    setError(null)
+  }
+
   useEffect(() => {
-    Promise.all([apiGet<Job[]>("/jobs"), apiGet<Application[]>("/applications")])
+    const params = onlyNew ? { new_in_last_run: "true" } : undefined
+    Promise.all([
+      apiGet<JobListItem[]>("/jobs", params),
+      apiGet<Application[]>("/applications"),
+    ])
       .then(([jobList, applications]) => {
         setJobs(jobList)
         setStatuses(new Map(applications.map((a) => [a.job_posting.id, a.status])))
       })
       .catch((e) => setError(errorMessage(e)))
       .finally(() => setLoading(false))
-  }, [])
+  }, [onlyNew])
 
   if (loading) return <p>Loading...</p>
   if (error) return <p className="text-red-600">Could not load jobs: {error}</p>
@@ -32,18 +43,32 @@ function JobsPage() {
     </Link>
   )
 
+  const toolbar = (
+    <div className="flex items-center justify-between">
+      <label className="flex items-center gap-2 text-sm">
+        <input type="checkbox" checked={onlyNew} onChange={(e) => toggleOnlyNew(e.target.checked)} />
+        New in last run
+      </label>
+      {addJob}
+    </div>
+  )
+
   if (jobs.length === 0) {
     return (
       <div className="space-y-4">
-        <p className="text-gray-600">No jobs yet. Add one you found yourself, or run ingestion.</p>
-        {addJob}
+        {toolbar}
+        <p className="text-gray-600">
+          {onlyNew
+            ? "The last ingestion run found no new jobs."
+            : "No jobs yet. Add one you found yourself, or run ingestion."}
+        </p>
       </div>
     )
   }
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">{addJob}</div>
+      {toolbar}
       <table className="w-full text-left text-sm">
         <thead className="border-b font-semibold">
           <tr>
@@ -64,6 +89,11 @@ function JobsPage() {
                   <Link to={`/jobs/${job.id}`} className="text-blue-600 hover:underline">
                     {job.title}
                   </Link>
+                  {job.is_new && (
+                    <span className="ml-2 rounded bg-green-100 px-1.5 py-0.5 text-xs font-medium text-green-800">
+                      new
+                    </span>
+                  )}
                 </td>
                 <td>{job.company.name}</td>
                 <td>{job.location ?? "-"}</td>

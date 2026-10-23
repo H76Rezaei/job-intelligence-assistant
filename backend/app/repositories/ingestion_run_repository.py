@@ -15,6 +15,15 @@ class IngestionRunRepository:
         self.session.flush()
         return run
 
+    def latest_finished_id(self) -> int | None:
+        stmt = (
+            select(IngestionRun.id)
+            .where(IngestionRun.finished_at.is_not(None))
+            .order_by(IngestionRun.id.desc())
+            .limit(1)
+        )
+        return self.session.scalars(stmt).first()
+
     def last_successful_start(self, source: str) -> datetime | None:
         """When the latest finished run in which this source did not fail started."""
         stmt = (

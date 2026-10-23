@@ -10,8 +10,10 @@ class Source(Protocol):
 
     name: str
 
-    def search(self, settings: SearchSettings) -> Iterable[FetchedJob]:
-        """Postings matching the search, without the full text."""
+    def search(
+        self, settings: SearchSettings, published_within_days: int
+    ) -> Iterable[FetchedJob]:
+        """Postings published in the window, without the full text; each job once."""
         ...
 
     def fetch_details(self, job: FetchedJob) -> FetchedJob:

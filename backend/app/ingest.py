@@ -24,8 +24,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Search settings not found: {error.filename}")
         print("Copy config/search.example.toml to config/search.toml and fill it in.")
         return 1
-    if not settings.keywords or not settings.centers:
-        print("Add at least one keyword and one center to your search settings.")
+    if not settings.keywords or not (settings.centers or settings.remote_germany):
+        print("Add at least one keyword, and a center or the remote search, to your settings.")
         return 1
 
     names = [args.source] if args.source else list(SOURCES)

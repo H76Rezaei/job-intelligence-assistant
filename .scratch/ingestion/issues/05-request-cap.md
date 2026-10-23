@@ -9,4 +9,6 @@
 - [ ] The request cap is read from the settings file, default 300
 - [ ] Once the cap is reached, no further requests are sent and remaining jobs are counted as skipped by cap in the summary and the run record
 - [ ] A run that hit the cap does not count as successful for the window, so the next run searches the same period again
+- [ ] A run in which a detail call failed does not count as successful for the window either, so those jobs are tried again next time (found in the ticket 04 review)
+- [ ] Retries (ticket 04) count towards the cap
 - [ ] Tests cover stopping at the cap, the skipped-by-cap count, and the next run's window

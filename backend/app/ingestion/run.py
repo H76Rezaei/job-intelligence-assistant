@@ -10,6 +10,7 @@ from app.ingestion.settings import SearchSettings
 from app.ingestion.source import RequestCapReached, Source
 from app.ingestion.storage import find_existing_job, store_job
 from app.models.ingestion_run import IngestionRun
+from app.models.job_posting import JobPosting
 from app.repositories.ingestion_run_repository import IngestionRunRepository
 
 log = logging.getLogger(__name__)
@@ -24,6 +25,8 @@ MAX_WINDOW_DAYS = 14
 class SourceCounts:
     fetched: int = 0
     new: int = 0
+    # Known jobs not seen for longer than reopen_after_days, fetched again
+    reopened: int = 0
     known: int = 0
     skipped_non_germany: int = 0
     detail_errors: int = 0
@@ -56,6 +59,10 @@ def run_ingestion(
     session.commit()
     session.refresh(run)
     return run
+
+
+def _unseen_for(job: JobPosting, days: int) -> bool:
+    return datetime.now(timezone.utc) - job.last_seen_at > timedelta(days=days)
 
 
 def _settings_for(settings: SearchSettings, last_start: datetime | None) -> SearchSettings:
@@ -101,23 +108,31 @@ def _ingest_source(
             # Adapters set "DE" for jobs in Germany, including remote jobs without a location
             if fetched.country != "DE":
                 counts.skipped_non_germany += 1
-            elif find_existing_job(session, source.name, fetched) is not None:
+                continue
+            existing = find_existing_job(session, source.name, fetched)
+            reopened = existing is not None and _unseen_for(existing, settings.reopen_after_days)
+            if existing is not None and not reopened:
                 store_job(session, source.name, fetched)
                 counts.known += 1
-            elif counts.capped:
+                continue
+            # New and reopened jobs need their full text; skipped ones stay as they are
+            if counts.capped:
                 counts.skipped_by_cap += 1
+                continue
+            try:
+                detailed = source.fetch_details(fetched)
+            except RequestCapReached:
+                counts.capped = True
+                counts.skipped_by_cap += 1
+                continue
+            except Exception:
+                log.exception("Details for %s %s failed", source.name, fetched.source_id)
+                counts.detail_errors += 1
+                continue
+            store_job(session, source.name, detailed, mark_new_in_run=run_id)
+            if reopened:
+                counts.reopened += 1
             else:
-                try:
-                    detailed = source.fetch_details(fetched)
-                except RequestCapReached:
-                    counts.capped = True
-                    counts.skipped_by_cap += 1
-                    continue
-                except Exception:
-                    log.exception("Details for %s %s failed", source.name, fetched.source_id)
-                    counts.detail_errors += 1
-                    continue
-                store_job(session, source.name, detailed, run_id)
                 counts.new += 1
         savepoint.commit()
     except Exception as error:
@@ -126,7 +141,8 @@ def _ingest_source(
         return SourceCounts(failed=str(error))
     if counts.capped:
         log.warning(
-            "Source %s reached the cap of %s requests; %s new jobs found so far wait for the next run",
+            "Source %s reached the cap of %s requests; %s new or reopened jobs found so far "
+            "wait for the next run",
             source.name, settings.max_requests_per_run, counts.skipped_by_cap,
         )
     return counts

@@ -4,10 +4,10 @@
 
 **Blocked by:** 02
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The reopen window is read from the settings file, default 60 days
-- [ ] A known job last seen longer ago than the window gets the detail call, a new snapshot when the content hash differs, and is marked new in this run (ticket 03 built the marker: pass the run id in the known-job path of the run and set `new_in_run_id` in the existing-job branch of `store_job`)
-- [ ] The run summary and record count reopened jobs separately
-- [ ] Applications keep pointing at their original snapshot
-- [ ] Seam 1 tests cover a job inside the window (no detail call) and one outside it (detail call, new snapshot)
+- [x] The reopen window is read from the settings file, default 60 days
+- [x] A known job last seen longer ago than the window gets the detail call, a new snapshot when the content hash differs, and is marked new in this run (ticket 03 built the marker: pass the run id in the known-job path of the run and set `new_in_run_id` in the existing-job branch of `store_job`)
+- [x] The run summary and record count reopened jobs separately
+- [x] Applications keep pointing at their original snapshot
+- [x] Seam 1 tests cover a job inside the window (no detail call) and one outside it (detail call, new snapshot)

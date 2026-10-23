@@ -67,7 +67,7 @@ def test_run_stores_new_jobs_with_full_text(client, session):
     assert detail["description"] == f"Full text of {detail['title']}"
     assert [s["source"] for s in detail["sources"]] == ["fake"]
     assert run.counts["fake"] == {
-        "fetched": 2, "new": 2, "known": 0, "skipped_non_germany": 0, "detail_errors": 0,
+        "fetched": 2, "new": 2, "reopened": 0, "known": 0, "skipped_non_germany": 0, "detail_errors": 0,
         "skipped_by_cap": 0, "capped": False, "failed": None,
     }
     assert run.finished_at is not None

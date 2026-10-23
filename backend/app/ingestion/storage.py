@@ -46,11 +46,16 @@ def find_existing_job(session: Session, source: str, fetched: FetchedJob) -> Job
 
 
 def store_job(
-    session: Session, source: str, fetched: FetchedJob, run_id: int | None = None
+    session: Session,
+    source: str,
+    fetched: FetchedJob,
+    mark_new_in_run: int | None = None,
 ) -> StoredJob:
     """Store a fetched job, or attach it to the job we already have.
 
-    A job created by an ingestion run is marked new in that run.
+    `mark_new_in_run` (an ingestion run id) marks the job new in that run.
+    The run passes it for jobs it creates and for known jobs it reopens,
+    never for jobs it merely saw again; paste import never passes it.
     """
     job = find_existing_job(session, source, fetched)
     created = job is None
@@ -64,11 +69,13 @@ def store_job(
                 employment_type=fetched.employment_type,
                 work_mode=fetched.work_mode,
                 url=fetched.url,
-                new_in_run_id=run_id,
+                new_in_run_id=mark_new_in_run,
             )
         )
     else:
         job.last_seen_at = func.now()
+        if mark_new_in_run is not None:
+            job.new_in_run_id = mark_new_in_run
 
     sources = JobPostingSourceRepository(session)
     if sources.get(source, fetched.source_id) is None:

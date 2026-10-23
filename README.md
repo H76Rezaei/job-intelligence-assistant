@@ -4,7 +4,7 @@ A personal tool for my own job search in Germany. It collects new job postings f
 
 The repo is public for a second reason: it shows how I build software with [Claude Code](https://claude.com/claude-code) and a set of engineering skills (see [How it is built](#how-it-is-built)).
 
-**Status:** work in progress. The database, the backend API and the dashboard exist. Job ingestion is being built now. The plan is in [docs/roadmap.md](docs/roadmap.md).
+**Status:** work in progress. The database, the backend API, the dashboard and job ingestion from the Bundesagentur and a paste form exist. The collectors for other job boards come next. The plan is in [docs/roadmap.md](docs/roadmap.md).
 
 ## The problem
 
@@ -14,7 +14,7 @@ Searching for jobs by hand means checking the same boards every day, reading the
 
 | Part | What it does | State |
 | --- | --- | --- |
-| Ingestion | Fetches postings from the Bundesagentur für Arbeit (including jobs it copies from other boards) and from a paste form. Recognises the same job across sources and cities | In progress |
+| Ingestion | Fetches postings from the Bundesagentur für Arbeit (including jobs it copies from other boards) and from a paste form. Recognises the same job across sources and cities | Built |
 | Collectors | Daily collectors for LinkedIn, StepStone, Xing and get-in-IT, in a separate private repo | Planned |
 | Profile | My skills, projects and experience, each with evidence | Partly built |
 | Fit score | Extracts requirements from a posting and checks them against my evidence. Only jobs at or above 50% are shown, with the reasons | Planned |
@@ -67,6 +67,18 @@ npm run dev
 ```
 
 The API runs on http://localhost:8000 (interactive docs at `/docs`) and the dashboard on http://localhost:5173.
+
+### Fetching jobs
+
+```cmd
+:: Once: copy the example and put your own search in it (the copy is ignored by git)
+copy config\search.example.toml config\search.toml
+
+:: Each time you want new jobs (from backend\)
+python -m app.ingest
+```
+
+The command prints a summary per source. On the Jobs page, "New in last run" shows what the run found. A run stops at a request limit and the next run continues where it stopped, so nothing is lost.
 
 ### Tests
 

@@ -42,7 +42,7 @@ v3.0 turns the project from an agent portfolio piece into a daily-use tool, so t
 
 Seven steps, in this order. The weeks are a rough guess at 10 hours a week, and I expect the early steps to be more accurate than the later ones.
 
-**Built so far:** PostgreSQL 17 in Docker, five tables (Company, JobPosting, JobPostingSnapshot, CandidateProfile, Application), a FastAPI backend (read-only jobs, profile, applications with six manual statuses), pytest tests, and a React dashboard with Jobs, Job Detail, Applications and Profile pages. No ingestion, no LLM calls, no deployment yet. The last push was on 16 Oct 2026.
+**Built so far:** PostgreSQL 17 in Docker, five tables (Company, JobPosting, JobPostingSnapshot, CandidateProfile, Application), a FastAPI backend (read-only jobs, profile, applications with six manual statuses), pytest tests, and a React dashboard with Jobs, Job Detail, Applications and Profile pages. Since 23 Oct 2026 also Step 1 (Claude Code setup) and Step 2 (Bundesagentur ingestion and paste import, see `.scratch/ingestion/`). No LLM calls and no deployment yet.
 
 | Step | What you get | Rough weeks |
 | --- | --- | --- |

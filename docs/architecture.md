@@ -16,9 +16,10 @@ Solid lines exist or are being built now. Dotted lines are planned; the step num
 
 ## Built so far
 
-- **Database:** PostgreSQL 17 in Docker, with Alembic migrations. Tables: `companies`, `job_postings`, `job_posting_snapshots`, `candidate_profiles`, `applications`.
-- **Backend:** FastAPI with read-only jobs, a candidate profile, and applications with six manual statuses. See [api.md](api.md).
-- **Dashboard:** React with Jobs, Job Detail, Applications and Profile pages.
+- **Database:** PostgreSQL 17 in Docker, with Alembic migrations. Tables: `companies`, `job_postings`, `job_posting_snapshots`, `job_posting_sources`, `ingestion_runs`, `candidate_profiles`, `applications`.
+- **Backend:** FastAPI with jobs (list, detail, paste import), a candidate profile, and applications with six manual statuses. See [api.md](api.md).
+- **Ingestion:** `python -m app.ingest` searches the Bundesagentur for every keyword around every search center and for remote jobs in Germany, fetches the full text of new and reopened jobs within a request cap, and records each run.
+- **Dashboard:** React with Jobs (with "new in last run"), Job Detail, Add job (paste), Applications and Profile pages.
 - **Tests:** pytest against a separate test database, each test in a rolled-back transaction.
 
 ## Key design rules
@@ -30,4 +31,4 @@ Solid lines exist or are being built now. Dotted lines are planned; the step num
 
 ## Not built yet
 
-Ingestion, the collectors, profile evidence, the fit score, document generation, the daily scheduler, login and deployment on Azure.
+The collectors, profile evidence, the fit score, document generation, the daily scheduler, login and deployment on Azure.

@@ -1,6 +1,6 @@
 # Spec: Ingestion (Bundesagentur + paste import)
 
-Status: ready-for-agent
+Status: done
 
 Roadmap: Step 2 in `docs/roadmap.md`. Decisions agreed in the grilling session of 23 Oct 2026 (see the roadmap's decision log).
 

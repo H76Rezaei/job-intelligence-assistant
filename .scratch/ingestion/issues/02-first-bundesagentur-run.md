@@ -4,7 +4,7 @@
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] Search settings are read from a TOML file ignored by git, path overridable by an environment variable; a committed example file shows keywords, centers (name and radius), the remote switch, the reopen window and the request cap, with made-up values and a note on how multi-word keywords match
 - [x] A small adapter interface: a source has a name, a search operation yielding fetched jobs (source ID, title, company name, location, country, URL, description, employment type, work mode, published at, raw data), and a details operation for one source ID; adapters never touch the database
@@ -17,4 +17,4 @@
 - [x] Sample responses with the structure of the 23 Oct 2026 API check are saved as test fixtures (made-up values, no real postings or places)
 - [x] Seam 1 tests: the run function with a fake adapter covers new vs. known jobs, duplicates across a rerun, the Germany filter, run counts, and a failing source not stopping another
 - [x] Seam 2 tests: an httpx mock transport serving the fixtures covers the requests sent and the mapping to fetched jobs; no test calls the live API
-- [ ] Manually verified: one real run stores jobs visible in the dashboard, and a second run stores no duplicates
+- [x] Manually verified: one real run stores jobs visible in the dashboard, and a second run stores no duplicates

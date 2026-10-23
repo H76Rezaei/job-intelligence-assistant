@@ -21,7 +21,9 @@ class SearchSettings:
     centers: list[Center]
     remote_germany: bool = True
     reopen_after_days: int = 60
+    # Requests per source and run; the first run looks back further and gets more
     max_requests_per_run: int = 300
+    max_requests_first_run: int = 500
 
 
 def load_settings(path: Path | None = None) -> SearchSettings:

@@ -4,10 +4,14 @@ from datetime import datetime, timedelta, timezone
 from app.ingestion.fetched_job import FetchedJob
 from app.ingestion.run import run_ingestion
 from app.ingestion.settings import Center, SearchSettings
+from app.ingestion.source import RequestCapReached
 from app.models.ingestion_run import IngestionRun
 
 SETTINGS = SearchSettings(
-    keywords=["Python"], centers=[Center(name="Testhausen", radius_km=25)]
+    keywords=["Python"],
+    centers=[Center(name="Testhausen", radius_km=25)],
+    max_requests_per_run=30,
+    max_requests_first_run=50,
 )
 
 
@@ -29,9 +33,11 @@ class FakeSource:
         self.jobs = jobs
         self.detail_calls = []
         self.windows = []
+        self.caps = []
 
     def search(self, settings, published_within_days):
         self.windows.append(published_within_days)
+        self.caps.append(settings.max_requests_per_run)
         yield from self.jobs
 
     def fetch_details(self, job):
@@ -62,7 +68,7 @@ def test_run_stores_new_jobs_with_full_text(client, session):
     assert [s["source"] for s in detail["sources"]] == ["fake"]
     assert run.counts["fake"] == {
         "fetched": 2, "new": 2, "known": 0, "skipped_non_germany": 0, "detail_errors": 0,
-        "failed": None,
+        "skipped_by_cap": 0, "capped": False, "failed": None,
     }
     assert run.finished_at is not None
 
@@ -201,3 +207,129 @@ def test_window_counts_whole_days_since_the_last_successful_run(session):
 
     # 3 days and 2 hours round up to 4, plus one day of overlap
     assert source.windows == [5]
+
+
+class CappedSource(FakeSource):
+    """Allows `allowed_details` detail calls, then reports the cap as reached."""
+
+    def __init__(self, name, jobs, allowed_details, cap_during_search=False):
+        super().__init__(name, jobs)
+        self.allowed_details = allowed_details
+        self.cap_during_search = cap_during_search
+
+    def search(self, settings, published_within_days):
+        yield from super().search(settings, published_within_days)
+        if self.cap_during_search:
+            raise RequestCapReached()
+
+    def fetch_details(self, job):
+        if len(self.detail_calls) >= self.allowed_details:
+            raise RequestCapReached()
+        return super().fetch_details(job)
+
+
+def test_cap_during_details_keeps_what_was_stored_and_counts_the_rest(client, session):
+    jobs = [_job(str(i), f"Job {i}") for i in range(5)]
+
+    run = run_ingestion(session, SETTINGS, [CappedSource("fake", jobs, allowed_details=2)])
+
+    assert len(client.get("/jobs").json()) == 2
+    counts = run.counts["fake"]
+    assert (counts["new"], counts["skipped_by_cap"], counts["capped"]) == (2, 3, True)
+    assert counts["failed"] is None
+
+
+def test_cap_during_search_keeps_the_results_found_so_far(client, session):
+    jobs = [_job("1", "Job 1"), _job("2", "Job 2")]
+
+    run = run_ingestion(
+        session, SETTINGS, [CappedSource("fake", jobs, allowed_details=0, cap_during_search=True)]
+    )
+
+    counts = run.counts["fake"]
+    assert (counts["fetched"], counts["new"], counts["skipped_by_cap"], counts["capped"]) == (2, 0, 2, True)
+
+
+def test_known_jobs_still_count_when_the_cap_is_reached(client, session):
+    run_ingestion(session, SETTINGS, [FakeSource("fake", [_job("1", "Job 1")])])
+
+    run = run_ingestion(
+        session, SETTINGS, [CappedSource("fake", [_job("1", "Job 1"), _job("2", "Job 2")], allowed_details=0)]
+    )
+
+    counts = run.counts["fake"]
+    assert (counts["known"], counts["skipped_by_cap"]) == (1, 1)
+
+
+def test_capped_run_does_not_move_the_window(session):
+    run_ingestion(session, SETTINGS, [CappedSource("fake", [_job("1", "Job 1")], allowed_details=0)])
+    source = FakeSource("fake", [])
+
+    run_ingestion(session, SETTINGS, [source])
+
+    assert source.windows == [7]
+
+
+def test_run_with_failed_detail_calls_does_not_move_the_window(session):
+    run_ingestion(session, SETTINGS, [FlakyDetailsSource("fake", [_job("2", "Job 2")])])
+    source = FakeSource("fake", [])
+
+    run_ingestion(session, SETTINGS, [source])
+
+    assert source.windows == [7]
+
+
+def test_jobs_skipped_by_the_cap_are_fetched_by_the_next_run(client, session):
+    jobs = [_job(str(i), f"Job {i}") for i in range(3)]
+    run_ingestion(session, SETTINGS, [CappedSource("fake", jobs, allowed_details=1)])
+
+    run = run_ingestion(session, SETTINGS, [FakeSource("fake", jobs)])
+
+    assert run.counts["fake"]["new"] == 2
+    assert len(client.get("/jobs").json()) == 3
+
+
+def test_first_run_gets_the_larger_first_run_cap(session):
+    source = FakeSource("fake", [])
+
+    run_ingestion(session, SETTINGS, [source])
+
+    assert source.caps == [50]
+
+
+def test_runs_after_a_complete_run_get_the_daily_cap(session):
+    run_ingestion(session, SETTINGS, [FakeSource("fake", [])])
+    source = FakeSource("fake", [])
+
+    run_ingestion(session, SETTINGS, [source])
+
+    assert source.caps == [30]
+
+
+def test_runs_still_catching_up_keep_the_first_run_cap(session):
+    run_ingestion(session, SETTINGS, [CappedSource("fake", [_job("1", "Job 1")], allowed_details=0)])
+    source = FakeSource("fake", [])
+
+    run_ingestion(session, SETTINGS, [source])
+
+    assert source.caps == [50]
+
+
+def test_window_never_grows_beyond_fourteen_days(session):
+    long_ago = datetime.now(timezone.utc) - timedelta(days=30)
+    session.add(IngestionRun(started_at=long_ago, finished_at=long_ago, counts={"fake": {"failed": None}}))
+    session.flush()
+    source = FakeSource("fake", [])
+
+    run_ingestion(session, SETTINGS, [source])
+
+    assert source.windows == [14]
+
+
+def test_cap_reached_by_the_search_alone_is_reported(session, caplog):
+    source = CappedSource("fake", [_job("1", "Job 1")], allowed_details=0, cap_during_search=True)
+
+    with caplog.at_level("WARNING"):
+        run_ingestion(session, SETTINGS, [source])
+
+    assert "search alone" in caplog.text

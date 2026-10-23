@@ -13,7 +13,9 @@ remote_germany = true
 # A job not seen for this many days counts as reopened
 reopen_after_days = 60
 
-# Upper limit of requests to a source in one run
+# Upper limit of requests to a source in one run. Until a source has completed a
+# run (the first run looks back 7 days), it gets the larger first-run limit.
+max_requests_first_run = 500
 max_requests_per_run = 300
 
 # Search around each center within its radius

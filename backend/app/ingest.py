@@ -43,6 +43,11 @@ def main(argv: list[str] | None = None) -> int:
                 f"{counts['skipped_non_germany']} skipped outside Germany, "
                 f"{counts['detail_errors']} detail errors"
             )
+            if counts["capped"]:
+                print(
+                    f"  {name}: reached the request cap; {counts['skipped_by_cap']} new jobs "
+                    "found so far (and any not yet searched) will be fetched by the next run"
+                )
     return 0
 
 

@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.ingestion_run import IngestionRun
@@ -25,13 +25,21 @@ class IngestionRunRepository:
         return self.session.scalars(stmt).first()
 
     def last_successful_start(self, source: str) -> datetime | None:
-        """When the latest finished run in which this source did not fail started."""
+        """When the latest complete run of this source started.
+
+        Complete: the source did not fail, did not hit the request cap and had
+        no failed detail calls, so nothing it found is still waiting. A run
+        that is not complete keeps the next run's window where it was.
+        """
+        counts = IngestionRun.counts[source]
         stmt = (
             select(IngestionRun.started_at)
             .where(
                 IngestionRun.finished_at.is_not(None),
                 IngestionRun.counts.has_key(source),
-                IngestionRun.counts[source]["failed"].astext.is_(None),
+                counts["failed"].astext.is_(None),
+                func.coalesce(counts["capped"].astext, "false") == "false",
+                func.coalesce(counts["detail_errors"].astext, "0") == "0",
             )
             .order_by(IngestionRun.started_at.desc())
             .limit(1)

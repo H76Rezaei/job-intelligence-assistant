@@ -1,11 +1,15 @@
 import base64
 import json
+from dataclasses import replace
 import logging
 from pathlib import Path
 
 import httpx
+import pytest
 
+from app.ingestion.fetched_job import FetchedJob
 from app.ingestion.settings import Center, SearchSettings
+from app.ingestion.source import RequestCapReached
 from app.ingestion.sources.bundesagentur import Bundesagentur
 from app.models.job_posting import WorkMode
 
@@ -277,3 +281,74 @@ def test_more_results_than_the_api_pages_through_are_logged(caplog, monkeypatch)
         list(_adapter([], search=huge).search(ONE_SEARCH, published_within_days=7))
 
     assert "5000" in caplog.text
+
+
+def _capped(settings, cap):
+    return replace(settings, max_requests_per_run=cap)
+
+
+def test_search_stops_at_the_cap_and_keeps_what_it_found():
+    requests = []
+    adapter = _adapter(requests)
+    found = []
+
+    with pytest.raises(RequestCapReached):
+        for job in adapter.search(_capped(SETTINGS, 2), published_within_days=7):
+            found.append(job)
+
+    assert len(requests) == 2
+    assert len(found) == 3
+
+
+def test_detail_calls_count_towards_the_cap():
+    requests = []
+    adapter = _adapter(requests)
+    jobs = list(adapter.search(_capped(ONE_SEARCH, 2), published_within_days=7))
+
+    adapter.fetch_details(jobs[0])
+    with pytest.raises(RequestCapReached):
+        adapter.fetch_details(jobs[1])
+
+    assert len(requests) == 2
+
+
+def test_retries_count_towards_the_cap():
+    calls = []
+
+    def handler(request):
+        calls.append(request)
+        return httpx.Response(503)
+
+    adapter = Bundesagentur(httpx.Client(transport=httpx.MockTransport(handler)), retry_delay=0)
+
+    with pytest.raises(RequestCapReached):
+        list(adapter.search(_capped(ONE_SEARCH, 2), published_within_days=7))
+
+    assert len(calls) == 2
+
+
+def test_each_search_starts_with_a_full_allowance():
+    adapter = _adapter([])
+    list(adapter.search(_capped(ONE_SEARCH, 1), published_within_days=7))
+
+    assert len(list(adapter.search(_capped(ONE_SEARCH, 1), published_within_days=7))) == 3
+
+
+def test_jobs_waiting_for_a_country_are_returned_when_the_cap_is_reached():
+    no_location = {**SEARCH["ergebnisliste"][0], "stellenlokationen": []}
+    adapter = _adapter([], search={**SEARCH, "ergebnisliste": [no_location]})
+    found = []
+
+    with pytest.raises(RequestCapReached):
+        for job in adapter.search(_capped(SETTINGS, 1), published_within_days=7):
+            found.append(job)
+
+    assert [j.source_id for j in found] == ["10000-0000000001-S"]
+
+
+def test_detail_calls_before_any_search_are_refused():
+    adapter = _adapter([])
+    job = FetchedJob(source_id="x", title="t", company_name="c", url="https://x.example")
+
+    with pytest.raises(RequestCapReached):
+        adapter.fetch_details(job)

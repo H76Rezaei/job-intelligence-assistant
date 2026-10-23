@@ -15,6 +15,7 @@ import httpx
 
 from app.ingestion.fetched_job import FetchedJob
 from app.ingestion.settings import Center, SearchSettings
+from app.ingestion.source import RequestCapReached
 from app.models.job_posting import WorkMode
 
 BASE_URL = "https://rest.arbeitsagentur.de/jobboerse/jobsuche-service"
@@ -58,6 +59,8 @@ class Bundesagentur:
     def __init__(self, client: httpx.Client | None = None, retry_delay: float = 2.0):
         self.client = client or httpx.Client(timeout=30)
         self.retry_delay = retry_delay
+        # Set by each search; none before that
+        self.requests_left = 0
 
     def search(
         self, settings: SearchSettings, published_within_days: int
@@ -67,18 +70,23 @@ class Bundesagentur:
         Each job is returned once. Jobs without a known country wait until all
         searches are done, in case the remote search shows they are in Germany.
         """
+        self.requests_left = settings.max_requests_per_run
         returned: set[str] = set()
         unknown_country: dict[str, FetchedJob] = {}
-        for query in self._queries(settings):
-            for job in self._search_pages(query, published_within_days):
-                if job.source_id in returned:
-                    continue
-                if job.country is None:
-                    unknown_country.setdefault(job.source_id, job)
-                    continue
-                unknown_country.pop(job.source_id, None)
-                returned.add(job.source_id)
-                yield job
+        try:
+            for query in self._queries(settings):
+                for job in self._search_pages(query, published_within_days):
+                    if job.source_id in returned:
+                        continue
+                    if job.country is None:
+                        unknown_country.setdefault(job.source_id, job)
+                        continue
+                    unknown_country.pop(job.source_id, None)
+                    returned.add(job.source_id)
+                    yield job
+        except RequestCapReached:
+            yield from unknown_country.values()
+            raise
         yield from unknown_country.values()
 
     def _queries(self, settings: SearchSettings) -> Iterable[_Query]:
@@ -127,8 +135,14 @@ class Bundesagentur:
         )
 
     def _get(self, url: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
-        """GET with two retries for connection problems and server errors."""
+        """GET with two retries for connection problems and server errors.
+
+        Every attempt counts towards the request cap.
+        """
         for attempt in range(3):
+            if self.requests_left <= 0:
+                raise RequestCapReached()
+            self.requests_left -= 1
             try:
                 response = self.client.get(url, headers=HEADERS, params=params)
                 if response.status_code < 500:

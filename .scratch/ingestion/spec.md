@@ -100,7 +100,7 @@ A command I start myself fetches recent postings from the Bundesagentur für Arb
 - Place check: if the place the API reports it searched (`woOutput.bereinigterOrt`) does not match the configured center, skip that query and log a warning.
 - Work mode: `homeofficeprozent == 100` maps to remote; `homeofficemoeglich == true` otherwise maps to hybrid; everything else to onsite.
 - Location: the first German entry in `stellenlokationen`; the full list stays in the raw data.
-- Request cap: a configurable maximum number of requests per run (default 300). When it is reached, remaining jobs are counted as skipped by cap.
+- Request cap: a configurable maximum number of requests per run (default 300 per run, 500 until a source has completed its first run; chosen on 23 Oct 2026). When it is reached, remaining jobs are counted as skipped by cap.
 
 **Settings**
 - Search settings live in a TOML file ignored by git, with a committed example file. Its path can be overridden by an environment variable. It holds keywords, centers (name and radius), the remote switch, the reopen window and the request cap.

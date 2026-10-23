@@ -273,6 +273,7 @@ Nothing under Later has a date. Each item starts after Step 7, or earlier if dai
 | 23 Oct 2026 | Only jobs not yet in the database are fetched in full. Edits to known jobs are ignored. A job unseen for 60 days counts as reopened. No closure detection yet |
 | 23 Oct 2026 | Raw source JSON on every snapshot, kept forever. Ingestion runs recorded in `ingestion_runs`, with a "new in last run" filter on the Jobs page |
 | 23 Oct 2026 | Several search centers, each with its own radius, plus Germany-wide remote. Settings in `config/search.toml`, not in the repo |
+| 23 Oct 2026 | Bundesagentur request cap: 500 until the first complete run, then 300 per daily run. A capped run continues in the next run without losing jobs |
 | 23 Oct 2026 | Step 3 becomes collectors for LinkedIn, StepStone, Xing and get-in-IT, once a day each, in the private repo |
 
 ## Definition of done

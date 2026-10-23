@@ -1,5 +1,6 @@
 import { NavLink, Navigate, Route, Routes } from "react-router-dom"
 import ApplicationsPage from "./pages/ApplicationsPage"
+import JobDetailPage from "./pages/JobDetailPage"
 import JobsPage from "./pages/JobsPage"
 import ProfilePage from "./pages/ProfilePage"
 
@@ -19,6 +20,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Navigate to="/jobs" replace />} />
           <Route path="/jobs" element={<JobsPage />} />
+          <Route path="/jobs/:id" element={<JobDetailPage />} />
           <Route path="/applications" element={<ApplicationsPage />} />
           <Route path="/profile" element={<ProfilePage />} />
         </Routes>

@@ -17,3 +17,6 @@ dist/
 .DS_Store
 .idea/
 .vscode/
+
+# Private search settings (real values stay local)
+config/search.toml

@@ -2,8 +2,9 @@
 # Copy this file to config/search.toml (ignored by git) and put your own search there.
 # Another path can be set with the SEARCH_SETTINGS_PATH environment variable.
 
-# Single words or short exact phrases. Multi-word phrases match strictly in the
-# Bundesagentur search: "Python Entwickler" can return nothing where "Python" finds dozens.
+# A keyword with several words finds postings containing all of them in any order:
+# "AI Developer" also finds "Junior AI Developer" and "Generative AI Developer".
+# Add German and English variants: "AI Developer" does not find "KI-Entwickler".
 keywords = ["Python", "Backend"]
 
 # Also search for fully remote jobs anywhere in Germany

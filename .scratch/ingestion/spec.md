@@ -143,5 +143,6 @@ A command I start myself fetches recent postings from the Bundesagentur für Arb
 
 - The Bundesagentur interface is unofficial and changed its field names in August 2026. Keep all field mapping in the adapter so a future change touches one place.
 - The portal terms forbid automated data collection against the BA's intended purpose. We accepted this for personal, low-volume use you start yourself; paste import is the fallback if access breaks.
-- Multi-word keywords match strictly in the Bundesagentur search ("Python Entwickler" returned 0 where "Python" returned 42). The example settings file should say so.
+- A multi-word keyword finds postings containing all its words in any order ("AI Developer" also finds "Junior AI Developer"; checked live on 23 Oct 2026). English keywords do not find German titles ("KI-Entwickler"), so the example settings file suggests both.
+- A few search results have no title; the adapter falls back to the job category (`hauptberuf`).
 - Known limitation: an application is unique per job posting, so if a reopened job is one you already applied to, you cannot create a second application for it. Revisit if it becomes a problem.

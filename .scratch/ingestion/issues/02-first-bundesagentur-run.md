@@ -6,7 +6,7 @@
 
 **Status:** ready-for-agent
 
-- [x] Search settings are read from a TOML file ignored by git, path overridable by an environment variable; a committed example file shows keywords, centers (name and radius), the remote switch, the reopen window and the request cap, with made-up values and a note that multi-word keywords match strictly
+- [x] Search settings are read from a TOML file ignored by git, path overridable by an environment variable; a committed example file shows keywords, centers (name and radius), the remote switch, the reopen window and the request cap, with made-up values and a note on how multi-word keywords match
 - [x] A small adapter interface: a source has a name, a search operation yielding fetched jobs (source ID, title, company name, location, country, URL, description, employment type, work mode, published at, raw data), and a details operation for one source ID; adapters never touch the database
 - [x] The Bundesagentur adapter searches `GET /pc/v6/jobs` (header `X-API-Key: jobboerse-jobsuche`; results in `ergebnisliste`, ID `referenznummer`) for the first keyword around the first center, and fetches details from `GET /pc/v4/jobdetails/{base64(referenznummer)}` (`stellenangebotsBeschreibung`)
 - [x] Location is the first German entry in `stellenlokationen`; work mode is remote when `homeofficeprozent` is 100, hybrid when `homeofficemoeglich` is otherwise true, else onsite

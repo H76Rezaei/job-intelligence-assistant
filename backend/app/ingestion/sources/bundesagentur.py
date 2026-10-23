@@ -61,7 +61,8 @@ def _to_fetched_job(result: dict[str, Any]) -> FetchedJob:
     location, country = _location(result.get("stellenlokationen") or [])
     return FetchedJob(
         source_id=result["referenznummer"],
-        title=result["stellenangebotsTitel"],
+        # A few postings have no title; their job category is the closest stand-in
+        title=result.get("stellenangebotsTitel") or result.get("hauptberuf") or "Untitled",
         company_name=result["firma"],
         url=JOB_PAGE_URL.format(result["referenznummer"]),
         location=location,

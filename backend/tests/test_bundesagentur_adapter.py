@@ -92,3 +92,12 @@ def test_fetch_details_adds_full_text_and_keeps_both_responses():
     assert detailed.description.startswith("Wir suchen eine:n Python Entwickler:in.")
     assert detailed.raw["search"]["referenznummer"] == "10000-0000000001-S"
     assert detailed.raw["details"]["stellenangebotsBeschreibung"] == DETAIL["stellenangebotsBeschreibung"]
+
+
+def test_result_without_title_uses_its_job_category():
+    untitled = {**SEARCH["ergebnisliste"][0], "hauptberuf": "Frontend-Entwickler/in"}
+    del untitled["stellenangebotsTitel"]
+
+    [job] = _adapter([], search={**SEARCH, "ergebnisliste": [untitled]}).search(SETTINGS)
+
+    assert job.title == "Frontend-Entwickler/in"

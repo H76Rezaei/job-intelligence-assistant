@@ -13,6 +13,13 @@ class JobPostingSnapshotRepository:
         self.session.flush()
         return snapshot
 
+    def has_hash(self, job_id: int, content_hash: str) -> bool:
+        stmt = select(JobPostingSnapshot.id).where(
+            JobPostingSnapshot.job_posting_id == job_id,
+            JobPostingSnapshot.content_hash == content_hash,
+        )
+        return self.session.scalars(stmt).first() is not None
+
     def get_latest_for_job(self, job_id: int) -> JobPostingSnapshot | None:
         stmt = (
             select(JobPostingSnapshot)

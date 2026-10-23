@@ -16,3 +16,7 @@ class CompanyRepository:
     def get_by_domain(self, domain: str) -> Company | None:
         stmt = select(Company).where(Company.domain == domain)
         return self.session.scalars(stmt).first()
+
+    def get_by_normalized_name(self, normalized_name: str) -> Company | None:
+        stmt = select(Company).where(Company.normalized_name == normalized_name)
+        return self.session.scalars(stmt).first()

@@ -1,4 +1,5 @@
-export type WorkMode = "remote" | "onsite" | "hybrid"
+export const WORK_MODES = ["remote", "hybrid", "onsite"] as const
+export type WorkMode = (typeof WORK_MODES)[number]
 export type JobStatus = "open" | "closed"
 
 export interface Company {
@@ -24,9 +25,26 @@ export interface Job {
   company: Company
 }
 
+export interface JobSource {
+  source: string
+  url: string
+  first_seen_at: string
+}
+
 export interface JobDetail extends Job {
   description: string | null
   captured_at: string | null
+  sources: JobSource[]
+}
+
+export interface JobPasteInput {
+  title: string
+  company_name: string
+  url: string
+  description: string
+  location: string | null
+  employment_type: string | null
+  work_mode: WorkMode | null
 }
 
 export const APPLICATION_STATUSES = [

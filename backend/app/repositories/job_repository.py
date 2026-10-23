@@ -24,7 +24,16 @@ class JobRepository:
     def get(self, job_id: int) -> JobPosting | None:
         stmt = (
             select(JobPosting)
-            .options(selectinload(JobPosting.company))
+            .options(selectinload(JobPosting.company), selectinload(JobPosting.sources))
             .where(JobPosting.id == job_id)
+        )
+        return self.session.scalars(stmt).first()
+
+    def get_by_company_and_title(
+        self, company_id: int, normalized_title: str
+    ) -> JobPosting | None:
+        stmt = select(JobPosting).where(
+            JobPosting.company_id == company_id,
+            JobPosting.normalized_title == normalized_title,
         )
         return self.session.scalars(stmt).first()

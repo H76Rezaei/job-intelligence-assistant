@@ -1,6 +1,9 @@
 from datetime import datetime
 
+from typing import Any
+
 from sqlalchemy import DateTime, ForeignKey, String, Text, UniqueConstraint, func
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
@@ -17,6 +20,8 @@ class JobPostingSnapshot(Base):
     location: Mapped[str | None] = mapped_column(String(255))
     description: Mapped[str] = mapped_column(Text)
     content_hash: Mapped[str] = mapped_column(String(64))
+    # What the source sent for this version (for paste: the submitted form)
+    raw_data: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     captured_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

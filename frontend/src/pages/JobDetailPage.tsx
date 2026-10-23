@@ -4,6 +4,11 @@ import { apiGet, errorMessage, httpStatus } from "../api/client"
 import type { Application, JobDetail } from "../api/types"
 import ApplicationControls from "../components/ApplicationControls"
 
+const SOURCE_LABELS: Record<string, string> = {
+  paste: "Added by me",
+  bundesagentur: "Bundesagentur",
+}
+
 function JobDetailPage() {
   const { id } = useParams()
   const [job, setJob] = useState<JobDetail | null>(null)
@@ -38,14 +43,23 @@ function JobDetailPage() {
         {job.company.name} · {job.location ?? "Location not given"} ·{" "}
         {job.work_mode ?? "Work mode not given"}
       </p>
-      <a
-        href={job.url}
-        target="_blank"
-        rel="noreferrer"
-        className="text-sm text-blue-600 hover:underline"
-      >
-        Original posting
-      </a>
+      <p className="text-sm text-gray-600">
+        Found on:{" "}
+        {job.sources.length === 0 ? (
+          <a href={job.url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">
+            original posting
+          </a>
+        ) : (
+          job.sources.map((s, i) => (
+            <span key={s.url}>
+              {i > 0 && ", "}
+              <a href={s.url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">
+                {SOURCE_LABELS[s.source] ?? s.source}
+              </a>
+            </span>
+          ))
+        )}
+      </p>
 
       <ApplicationControls jobId={job.id} application={application} onChange={setApplication} />
 

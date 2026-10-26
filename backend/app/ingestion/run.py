@@ -1,5 +1,4 @@
 import logging
-import math
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timedelta, timezone
 
@@ -19,6 +18,8 @@ log = logging.getLogger(__name__)
 FIRST_RUN_DAYS = 7
 # Upper limit, so a source that keeps hitting the cap does not search ever more pages
 MAX_WINDOW_DAYS = 14
+# Each window reaches this far back before the last successful run, so nothing slips between runs
+OVERLAP = timedelta(days=1)
 
 
 @dataclass
@@ -49,7 +50,7 @@ def run_ingestion(
                 session,
                 _settings_for(settings, last_starts[source.name]),
                 source,
-                _window_days(last_starts[source.name]),
+                _window_start(last_starts[source.name]),
                 run.id,
             )
         )
@@ -72,19 +73,19 @@ def _settings_for(settings: SearchSettings, last_start: datetime | None) -> Sear
     return settings
 
 
-def _window_days(last_start: datetime | None) -> int:
-    """Days since the source last ran successfully, plus one day of overlap."""
+def _window_start(last_start: datetime | None) -> datetime:
+    """The last successful run of the source minus the overlap, within the limits."""
+    now = datetime.now(timezone.utc)
     if last_start is None:
-        return FIRST_RUN_DAYS
-    elapsed = datetime.now(timezone.utc) - last_start
-    return min(max(1, math.ceil(elapsed / timedelta(days=1))) + 1, MAX_WINDOW_DAYS)
+        return now - timedelta(days=FIRST_RUN_DAYS)
+    return max(last_start - OVERLAP, now - timedelta(days=MAX_WINDOW_DAYS))
 
 
 def _ingest_source(
     session: Session,
     settings: SearchSettings,
     source: Source,
-    window_days: int,
+    since: datetime,
     run_id: int,
 ) -> SourceCounts:
     counts = SourceCounts()
@@ -93,7 +94,7 @@ def _ingest_source(
     try:
         found = []
         try:
-            for fetched in source.search(settings, window_days):
+            for fetched in source.search(settings, since):
                 found.append(fetched)
         except RequestCapReached:
             counts.capped = True

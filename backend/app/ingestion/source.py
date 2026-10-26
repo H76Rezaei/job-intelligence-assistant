@@ -1,4 +1,5 @@
 from collections.abc import Iterable
+from datetime import datetime
 from typing import Protocol
 
 from app.ingestion.fetched_job import FetchedJob
@@ -19,10 +20,8 @@ class Source(Protocol):
 
     name: str
 
-    def search(
-        self, settings: SearchSettings, published_within_days: int
-    ) -> Iterable[FetchedJob]:
-        """Postings published in the window, without the full text; each job once."""
+    def search(self, settings: SearchSettings, since: datetime) -> Iterable[FetchedJob]:
+        """Postings published since `since`, without the full text; each job once."""
         ...
 
     def fetch_details(self, job: FetchedJob) -> FetchedJob:

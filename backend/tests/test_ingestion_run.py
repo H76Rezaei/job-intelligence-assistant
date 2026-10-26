@@ -15,6 +15,23 @@ SETTINGS = SearchSettings(
 )
 
 
+def _days_ago(days):
+    return datetime.now(timezone.utc) - timedelta(days=days)
+
+
+def _about(moment):
+    """A matcher for a time a few seconds away, as `now` moves on during a test."""
+
+    class About:
+        def __eq__(self, other):
+            return abs(other - moment) < timedelta(minutes=1)
+
+        def __repr__(self):
+            return f"about {moment}"
+
+    return About()
+
+
 def _job(source_id, title, company="Example Software GmbH", country="DE"):
     return FetchedJob(
         source_id=source_id,
@@ -32,11 +49,11 @@ class FakeSource:
         self.name = name
         self.jobs = jobs
         self.detail_calls = []
-        self.windows = []
+        self.window_starts = []
         self.caps = []
 
-    def search(self, settings, published_within_days):
-        self.windows.append(published_within_days)
+    def search(self, settings, since):
+        self.window_starts.append(since)
         self.caps.append(settings.max_requests_per_run)
         yield from self.jobs
 
@@ -48,7 +65,7 @@ class FakeSource:
 class BrokenSource:
     name = "broken"
 
-    def search(self, settings, published_within_days):
+    def search(self, settings, since):
         raise RuntimeError("source is down")
         yield
 
@@ -157,17 +174,16 @@ def test_first_run_looks_back_seven_days(session):
 
     run_ingestion(session, SETTINGS, [source])
 
-    assert source.windows == [7]
+    assert source.window_starts == [_about(_days_ago(7))]
 
 
-def test_next_run_looks_back_from_the_last_successful_run_plus_a_day(session):
-    run_ingestion(session, SETTINGS, [FakeSource("fake", [])])
+def test_next_run_looks_back_to_the_last_successful_run_minus_a_day(session):
+    previous = run_ingestion(session, SETTINGS, [FakeSource("fake", [])])
     source = FakeSource("fake", [])
 
     run_ingestion(session, SETTINGS, [source])
 
-    # The previous run was moments ago: at most one day, plus one day of overlap
-    assert source.windows == [2]
+    assert source.window_starts == [previous.started_at - timedelta(days=1)]
 
 
 def test_failed_run_does_not_move_the_window(session):
@@ -179,7 +195,7 @@ def test_failed_run_does_not_move_the_window(session):
 
     run_ingestion(session, SETTINGS, [source])
 
-    assert source.windows == [7]
+    assert source.window_starts == [_about(_days_ago(7))]
 
 
 def test_window_is_tracked_per_source(session):
@@ -188,10 +204,10 @@ def test_window_is_tracked_per_source(session):
 
     run_ingestion(session, SETTINGS, [source])
 
-    assert source.windows == [7]
+    assert source.window_starts == [_about(_days_ago(7))]
 
 
-def test_window_counts_whole_days_since_the_last_successful_run(session):
+def test_window_starts_a_day_before_the_last_successful_run(session):
     three_days_ago = datetime.now(timezone.utc) - timedelta(days=3, hours=2)
     session.add(
         IngestionRun(
@@ -205,8 +221,7 @@ def test_window_counts_whole_days_since_the_last_successful_run(session):
 
     run_ingestion(session, SETTINGS, [source])
 
-    # 3 days and 2 hours round up to 4, plus one day of overlap
-    assert source.windows == [5]
+    assert source.window_starts == [three_days_ago - timedelta(days=1)]
 
 
 class CappedSource(FakeSource):
@@ -217,8 +232,8 @@ class CappedSource(FakeSource):
         self.allowed_details = allowed_details
         self.cap_during_search = cap_during_search
 
-    def search(self, settings, published_within_days):
-        yield from super().search(settings, published_within_days)
+    def search(self, settings, since):
+        yield from super().search(settings, since)
         if self.cap_during_search:
             raise RequestCapReached()
 
@@ -267,7 +282,7 @@ def test_capped_run_does_not_move_the_window(session):
 
     run_ingestion(session, SETTINGS, [source])
 
-    assert source.windows == [7]
+    assert source.window_starts == [_about(_days_ago(7))]
 
 
 def test_run_with_failed_detail_calls_does_not_move_the_window(session):
@@ -276,7 +291,7 @@ def test_run_with_failed_detail_calls_does_not_move_the_window(session):
 
     run_ingestion(session, SETTINGS, [source])
 
-    assert source.windows == [7]
+    assert source.window_starts == [_about(_days_ago(7))]
 
 
 def test_jobs_skipped_by_the_cap_are_fetched_by_the_next_run(client, session):
@@ -323,7 +338,7 @@ def test_window_never_grows_beyond_fourteen_days(session):
 
     run_ingestion(session, SETTINGS, [source])
 
-    assert source.windows == [14]
+    assert source.window_starts == [_about(_days_ago(14))]
 
 
 def test_cap_reached_by_the_search_alone_is_reported(session, caplog):

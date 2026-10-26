@@ -22,7 +22,7 @@ class FakeSource:
         self.cap_details = cap_details
         self.detail_calls = 0
 
-    def search(self, settings, published_within_days):
+    def search(self, settings, since):
         yield FetchedJob(
             source_id="1",
             title="Python Developer",

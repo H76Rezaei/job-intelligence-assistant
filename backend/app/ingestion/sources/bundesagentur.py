@@ -6,9 +6,11 @@ so all field names live in this module.
 
 import base64
 import logging
+import math
 import time
 from collections.abc import Iterable
 from dataclasses import dataclass, replace
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import httpx
@@ -32,6 +34,17 @@ log = logging.getLogger(__name__)
 
 def _reported_place(body: dict[str, Any]) -> str:
     return (body.get("woOutput") or {}).get("bereinigterOrt") or ""
+
+
+def _days_since(since: datetime) -> int:
+    """Whole days back to `since`, rounded up, at least 1.
+
+    Minutes are dropped first, so time passing between the run choosing the
+    window and the search starting never adds a day (and never exceeds the
+    run's 7- and 14-day limits). The run's window already overlaps by a day.
+    """
+    hours = (datetime.now(timezone.utc) - since) // timedelta(hours=1)
+    return max(1, math.ceil(hours / 24))
 
 
 def _same_place(asked: str, reported: str) -> bool:
@@ -62,15 +75,14 @@ class Bundesagentur:
         # Set by each search; none before that
         self.requests_left = 0
 
-    def search(
-        self, settings: SearchSettings, published_within_days: int
-    ) -> Iterable[FetchedJob]:
+    def search(self, settings: SearchSettings, since: datetime) -> Iterable[FetchedJob]:
         """Every keyword around every center, plus remote jobs in all of Germany.
 
         Each job is returned once. Jobs without a known country wait until all
         searches are done, in case the remote search shows they are in Germany.
         """
         self.requests_left = settings.max_requests_per_run
+        published_within_days = _days_since(since)
         returned: set[str] = set()
         unknown_country: dict[str, FetchedJob] = {}
         try:

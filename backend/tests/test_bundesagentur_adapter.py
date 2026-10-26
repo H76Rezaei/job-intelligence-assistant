@@ -1,6 +1,7 @@
 import base64
 import json
 from dataclasses import replace
+from datetime import datetime, timedelta, timezone
 import logging
 from pathlib import Path
 
@@ -25,6 +26,10 @@ SETTINGS = SearchSettings(
 ONE_SEARCH = SearchSettings(
     keywords=["Python"], centers=[Center(name="Testhausen", radius_km=25)], remote_germany=False
 )
+
+
+def _days_ago(days, hours=0):
+    return datetime.now(timezone.utc) - timedelta(days=days, hours=hours)
 
 
 def _search_requests(requests):
@@ -57,7 +62,7 @@ def _adapter(requests, search=SEARCH, places=None):
 def test_search_runs_every_keyword_around_every_center_and_remote():
     requests = []
 
-    list(_adapter(requests).search(SETTINGS, published_within_days=3))
+    list(_adapter(requests).search(SETTINGS, since=_days_ago(3)))
 
     searches = _search_requests(requests)
     assert all(r.url.host == "rest.arbeitsagentur.de" for r in searches)
@@ -78,10 +83,25 @@ def test_search_runs_every_keyword_around_every_center_and_remote():
     ]
 
 
+def test_window_is_sent_as_whole_days_rounded_up():
+    for since, days in [
+        (_days_ago(4, hours=2), "5"),
+        (_days_ago(7), "7"),
+        (_days_ago(14), "14"),
+        (_days_ago(7, hours=0.5), "7"),
+        (_days_ago(0, hours=1), "1"),
+    ]:
+        requests = []
+
+        list(_adapter(requests).search(ONE_SEARCH, since=since))
+
+        assert _search_requests(requests)[0].url.params["veroeffentlichtseit"] == days
+
+
 def test_search_without_remote_switch_sends_no_remote_search():
     requests = []
 
-    list(_adapter(requests).search(ONE_SEARCH, published_within_days=7))
+    list(_adapter(requests).search(ONE_SEARCH, since=_days_ago(7)))
 
     assert [r.url.params.get("wo") for r in _search_requests(requests)] == ["Testhausen"]
 
@@ -98,7 +118,7 @@ def test_search_pages_through_all_results():
         return {**SEARCH, "ergebnisliste": results, "maxErgebnisse": 250}
 
     requests = []
-    jobs = list(_adapter(requests, search=page).search(ONE_SEARCH, published_within_days=7))
+    jobs = list(_adapter(requests, search=page).search(ONE_SEARCH, since=_days_ago(7)))
 
     assert len(jobs) == 250
     assert len({j.source_id for j in jobs}) == 250
@@ -106,7 +126,7 @@ def test_search_pages_through_all_results():
 
 
 def test_job_found_by_several_searches_is_returned_once():
-    jobs = list(_adapter([]).search(SETTINGS, published_within_days=7))
+    jobs = list(_adapter([]).search(SETTINGS, since=_days_ago(7)))
 
     assert [j.source_id for j in jobs] == [
         "10000-0000000001-S", "10000-0000000002-S", "10000-0000000003-S",
@@ -118,7 +138,7 @@ def test_misread_place_is_skipped_with_a_warning(caplog):
     adapter = _adapter(requests, places={"Musterstadt": "Mustersdorf"})
 
     with caplog.at_level(logging.WARNING):
-        jobs = list(adapter.search(SETTINGS, published_within_days=7))
+        jobs = list(adapter.search(SETTINGS, since=_days_ago(7)))
 
     assert len(jobs) == 3
     assert "Musterstadt" in caplog.text and "Mustersdorf" in caplog.text
@@ -126,7 +146,7 @@ def test_misread_place_is_skipped_with_a_warning(caplog):
 
 def test_misread_place_alone_returns_nothing():
     jobs = list(
-        _adapter([], places={"Testhausen": "Testdorf"}).search(ONE_SEARCH, published_within_days=7)
+        _adapter([], places={"Testhausen": "Testdorf"}).search(ONE_SEARCH, since=_days_ago(7))
     )
 
     assert jobs == []
@@ -137,7 +157,7 @@ def test_remote_job_without_location_counts_as_german():
     remote_only = SearchSettings(keywords=["Python"], centers=[], remote_germany=True)
 
     [job] = _adapter([], search={**SEARCH, "ergebnisliste": [no_location]}).search(
-        remote_only, published_within_days=7
+        remote_only, since=_days_ago(7)
     )
 
     assert job.country == "DE"
@@ -148,14 +168,14 @@ def test_center_job_without_location_is_not_assumed_german():
     no_location = {**SEARCH["ergebnisliste"][0], "stellenlokationen": []}
 
     [job] = _adapter([], search={**SEARCH, "ergebnisliste": [no_location]}).search(
-        ONE_SEARCH, published_within_days=7
+        ONE_SEARCH, since=_days_ago(7)
     )
 
     assert job.country is None
 
 
 def test_search_maps_results_to_fetched_jobs():
-    jobs = list(_adapter([]).search(ONE_SEARCH, published_within_days=7))
+    jobs = list(_adapter([]).search(ONE_SEARCH, since=_days_ago(7)))
 
     first, remote, foreign = jobs
     assert first.source_id == "10000-0000000001-S"
@@ -183,7 +203,7 @@ def test_location_is_the_first_german_one():
     }
 
     [job] = _adapter([], search={**SEARCH, "ergebnisliste": [result]}).search(
-        ONE_SEARCH, published_within_days=7
+        ONE_SEARCH, since=_days_ago(7)
     )
 
     assert job.location == "Musterstadt"
@@ -195,7 +215,7 @@ def test_result_without_title_uses_its_job_category():
     del untitled["stellenangebotsTitel"]
 
     [job] = _adapter([], search={**SEARCH, "ergebnisliste": [untitled]}).search(
-        ONE_SEARCH, published_within_days=7
+        ONE_SEARCH, since=_days_ago(7)
     )
 
     assert job.title == "Frontend-Entwickler/in"
@@ -204,7 +224,7 @@ def test_result_without_title_uses_its_job_category():
 def test_fetch_details_adds_full_text_and_keeps_both_responses():
     requests = []
     adapter = _adapter(requests)
-    [first, *_] = adapter.search(ONE_SEARCH, published_within_days=7)
+    [first, *_] = adapter.search(ONE_SEARCH, since=_days_ago(7))
 
     detailed = adapter.fetch_details(first)
 
@@ -220,7 +240,7 @@ def test_place_with_a_regional_suffix_is_the_same_place():
 
     jobs = list(
         _adapter(requests, places={"Testhausen": "Testhausen, Nord"}).search(
-            ONE_SEARCH, published_within_days=7
+            ONE_SEARCH, since=_days_ago(7)
         )
     )
 
@@ -233,7 +253,7 @@ def test_place_with_a_different_suffix_than_configured_is_skipped():
     )
 
     jobs = list(
-        _adapter([], places={"Testhausen, Nord": "Testhausen, Süd"}).search(settings, published_within_days=7)
+        _adapter([], places={"Testhausen, Nord": "Testhausen, Süd"}).search(settings, since=_days_ago(7))
     )
 
     assert jobs == []
@@ -246,7 +266,7 @@ def test_job_without_location_found_by_center_and_remote_search_is_returned_once
     )
 
     jobs = list(
-        _adapter([], search={**SEARCH, "ergebnisliste": [no_location]}).search(settings, published_within_days=7)
+        _adapter([], search={**SEARCH, "ergebnisliste": [no_location]}).search(settings, since=_days_ago(7))
     )
 
     assert [(j.source_id, j.country) for j in jobs] == [("10000-0000000001-S", "DE")]
@@ -263,7 +283,7 @@ def test_temporary_server_error_is_retried():
 
     adapter = Bundesagentur(httpx.Client(transport=httpx.MockTransport(handler)), retry_delay=0)
 
-    jobs = list(adapter.search(ONE_SEARCH, published_within_days=7))
+    jobs = list(adapter.search(ONE_SEARCH, since=_days_ago(7)))
 
     assert len(jobs) == 3
     assert len(calls) == 2
@@ -278,7 +298,7 @@ def test_more_results_than_the_api_pages_through_are_logged(caplog, monkeypatch)
         return {**SEARCH, "maxErgebnisse": 5000}
 
     with caplog.at_level(logging.WARNING):
-        list(_adapter([], search=huge).search(ONE_SEARCH, published_within_days=7))
+        list(_adapter([], search=huge).search(ONE_SEARCH, since=_days_ago(7)))
 
     assert "5000" in caplog.text
 
@@ -293,7 +313,7 @@ def test_search_stops_at_the_cap_and_keeps_what_it_found():
     found = []
 
     with pytest.raises(RequestCapReached):
-        for job in adapter.search(_capped(SETTINGS, 2), published_within_days=7):
+        for job in adapter.search(_capped(SETTINGS, 2), since=_days_ago(7)):
             found.append(job)
 
     assert len(requests) == 2
@@ -303,7 +323,7 @@ def test_search_stops_at_the_cap_and_keeps_what_it_found():
 def test_detail_calls_count_towards_the_cap():
     requests = []
     adapter = _adapter(requests)
-    jobs = list(adapter.search(_capped(ONE_SEARCH, 2), published_within_days=7))
+    jobs = list(adapter.search(_capped(ONE_SEARCH, 2), since=_days_ago(7)))
 
     adapter.fetch_details(jobs[0])
     with pytest.raises(RequestCapReached):
@@ -322,16 +342,16 @@ def test_retries_count_towards_the_cap():
     adapter = Bundesagentur(httpx.Client(transport=httpx.MockTransport(handler)), retry_delay=0)
 
     with pytest.raises(RequestCapReached):
-        list(adapter.search(_capped(ONE_SEARCH, 2), published_within_days=7))
+        list(adapter.search(_capped(ONE_SEARCH, 2), since=_days_ago(7)))
 
     assert len(calls) == 2
 
 
 def test_each_search_starts_with_a_full_allowance():
     adapter = _adapter([])
-    list(adapter.search(_capped(ONE_SEARCH, 1), published_within_days=7))
+    list(adapter.search(_capped(ONE_SEARCH, 1), since=_days_ago(7)))
 
-    assert len(list(adapter.search(_capped(ONE_SEARCH, 1), published_within_days=7))) == 3
+    assert len(list(adapter.search(_capped(ONE_SEARCH, 1), since=_days_ago(7)))) == 3
 
 
 def test_jobs_waiting_for_a_country_are_returned_when_the_cap_is_reached():
@@ -340,7 +360,7 @@ def test_jobs_waiting_for_a_country_are_returned_when_the_cap_is_reached():
     found = []
 
     with pytest.raises(RequestCapReached):
-        for job in adapter.search(_capped(SETTINGS, 1), published_within_days=7):
+        for job in adapter.search(_capped(SETTINGS, 1), since=_days_ago(7)):
             found.append(job)
 
     assert [j.source_id for j in found] == ["10000-0000000001-S"]

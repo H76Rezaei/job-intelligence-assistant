@@ -19,7 +19,7 @@ class FakeSource:
     def __init__(self, *titles):
         self.titles = titles
 
-    def search(self, settings, published_within_days):
+    def search(self, settings, since):
         for title in self.titles:
             yield FetchedJob(
                 source_id=title,
@@ -88,7 +88,7 @@ def test_job_detail_also_says_whether_it_is_new(client, session):
 
 
 class BrokenSource(FakeSource):
-    def search(self, settings, published_within_days):
+    def search(self, settings, since):
         raise RuntimeError("source is down")
 
 

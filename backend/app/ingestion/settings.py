@@ -15,12 +15,17 @@ class Center:
     radius_km: int
 
 
+# A job whose title contains one of these words is never stored (see is_senior_title)
+SENIOR_TITLE_WORDS = ["Senior", "Sr.", "Lead", "Principal", "Staff", "Head of", "Leiter", "Teamleiter"]
+
+
 @dataclass
 class SearchSettings:
     keywords: list[str]
     centers: list[Center]
     remote_germany: bool = True
     reopen_after_days: int = 60
+    exclude_title_words: list[str] = field(default_factory=lambda: list(SENIOR_TITLE_WORDS))
     # Requests per source and run; the first run looks back further and gets more
     max_requests_per_run: int = 300
     max_requests_first_run: int = 500

@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.ingestion.settings import SearchSettings
 from app.ingestion.source import RequestCapReached, Source
 from app.ingestion.storage import find_existing_job, store_job
+from app.matching import is_senior_title
 from app.models.ingestion_run import IngestionRun
 from app.models.job_posting import JobPosting
 from app.repositories.ingestion_run_repository import IngestionRunRepository
@@ -30,6 +31,7 @@ class SourceCounts:
     reopened: int = 0
     known: int = 0
     skipped_non_germany: int = 0
+    skipped_senior: int = 0
     detail_errors: int = 0
     skipped_by_cap: int = 0
     capped: bool = False
@@ -56,7 +58,8 @@ def run_ingestion(
         )
         for source in sources
     }
-    run.finished_at = func.now()
+    # now() is the transaction's start, the same moment as started_at; clock_timestamp() is the real time
+    run.finished_at = func.clock_timestamp()
     session.commit()
     session.refresh(run)
     return run
@@ -109,6 +112,9 @@ def _ingest_source(
             # Adapters set "DE" for jobs in Germany, including remote jobs without a location
             if fetched.country != "DE":
                 counts.skipped_non_germany += 1
+                continue
+            if is_senior_title(fetched.title, settings.exclude_title_words):
+                counts.skipped_senior += 1
                 continue
             existing = find_existing_job(session, source.name, fetched)
             reopened = existing is not None and _unseen_for(existing, settings.reopen_after_days)

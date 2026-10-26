@@ -1,4 +1,5 @@
-"""Cleanup rules that decide when two postings are the same job.
+"""Rules on job titles and company names: when two postings are the same job,
+and when a title calls the role senior.
 
 The cleaned values are matching keys only; original names are stored and shown.
 """
@@ -58,3 +59,25 @@ def normalize_url(url: str) -> str:
             "",
         )
     )
+
+
+# Words in a title that open the role to non-seniors as well ("Junior/Senior Developer")
+_OPEN_TO_NON_SENIORS = ("junior", "mid", "entry", "einsteiger", "berufseinsteiger")
+
+
+def _has_word(title: str, word: str) -> bool:
+    return re.search(rf"(?<!\w){re.escape(word.lower())}(?!\w)", title.lower()) is not None
+
+
+def is_senior_title(title: str, senior_words: list[str]) -> bool:
+    """The title calls the role senior; the description is never considered.
+
+    A senior word alone in brackets, as in "(Senior) Data Scientist", marks the
+    level as optional, so it does not count.
+    """
+    title = title.lower()
+    if any(_has_word(title, word) for word in _OPEN_TO_NON_SENIORS):
+        return False
+    for word in senior_words:
+        title = re.sub(rf"\(\s*{re.escape(word.lower())}\s*\)", " ", title)
+    return any(_has_word(title, word) for word in senior_words)

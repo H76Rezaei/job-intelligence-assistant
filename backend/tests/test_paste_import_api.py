@@ -197,3 +197,10 @@ def test_query_parameters_that_identify_a_posting_are_kept(client):
 
     assert len(response.json()["sources"]) == 2
     assert response.json()["id"] == first["id"]
+
+
+def test_paste_keeps_senior_titles(client):
+    response = client.post("/jobs", json={**PASTED, "title": "Senior Python Developer (m/w/d)"})
+
+    assert response.status_code == 201
+    assert response.json()["title"] == "Senior Python Developer (m/w/d)"

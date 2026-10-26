@@ -41,6 +41,7 @@ def main(argv: list[str] | None = None) -> int:
                 f"  {name}: {counts['fetched']} fetched, {counts['new']} new, "
                 f"{counts['reopened']} reopened, {counts['known']} already known, "
                 f"{counts['skipped_non_germany']} skipped outside Germany, "
+                f"{counts['skipped_senior']} skipped as senior, "
                 f"{counts['detail_errors']} detail errors"
             )
             if counts["capped"]:

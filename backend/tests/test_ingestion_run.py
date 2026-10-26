@@ -85,9 +85,9 @@ def test_run_stores_new_jobs_with_full_text(client, session):
     assert [s["source"] for s in detail["sources"]] == ["fake"]
     assert run.counts["fake"] == {
         "fetched": 2, "new": 2, "reopened": 0, "known": 0, "skipped_non_germany": 0, "detail_errors": 0,
-        "skipped_by_cap": 0, "capped": False, "failed": None,
+        "skipped_senior": 0, "skipped_by_cap": 0, "capped": False, "failed": None,
     }
-    assert run.finished_at is not None
+    assert run.finished_at > run.started_at
 
 
 def test_rerun_creates_no_duplicates_and_fetches_no_details(client, session):
@@ -348,3 +348,67 @@ def test_cap_reached_by_the_search_alone_is_reported(session, caplog):
         run_ingestion(session, SETTINGS, [source])
 
     assert "search alone" in caplog.text
+
+
+def test_senior_title_is_skipped_without_a_detail_call(client, session):
+    source = FakeSource("fake", [_job("1", "Senior Python Developer (m/w/d)"), _job("2", "Python Developer")])
+
+    run = run_ingestion(session, SETTINGS, [source])
+
+    assert [j["title"] for j in client.get("/jobs").json()] == ["Python Developer"]
+    assert source.detail_calls == ["2"]
+    assert run.counts["fake"]["skipped_senior"] == 1
+
+
+def test_senior_only_in_the_description_is_kept(client, session):
+    job = replace(_job("1", "Python Developer"), description="You work with senior engineers. 5+ years of experience.")
+
+    run = run_ingestion(session, SETTINGS, [FakeSource("fake", [job])])
+
+    assert run.counts["fake"]["new"] == 1
+
+
+def test_other_senior_titles_are_skipped(client, session):
+    titles = ["Sr. Data Engineer", "Head of Engineering", "Tech Lead Python", "Teamleiter Softwareentwicklung"]
+    jobs = [_job(str(i), title) for i, title in enumerate(titles)]
+
+    run = run_ingestion(session, SETTINGS, [FakeSource("fake", jobs)])
+
+    assert run.counts["fake"]["skipped_senior"] == 4
+    assert client.get("/jobs").json() == []
+
+
+def test_titles_open_to_juniors_or_mid_level_are_kept(client, session):
+    titles = ["Junior/Senior Python Developer", "Data Engineer (Mid/Senior)", "Senior oder Berufseinsteiger Backend"]
+    jobs = [_job(str(i), title) for i, title in enumerate(titles)]
+
+    run = run_ingestion(session, SETTINGS, [FakeSource("fake", jobs)])
+
+    assert run.counts["fake"]["new"] == 3
+
+
+def test_words_that_only_contain_a_senior_word_are_kept(client, session):
+    jobs = [_job("1", "Leadership Trainee"), _job("2", "Staffing Specialist")]
+
+    run = run_ingestion(session, SETTINGS, [FakeSource("fake", jobs)])
+
+    assert run.counts["fake"]["new"] == 2
+
+
+def test_senior_words_come_from_the_settings(client, session):
+    settings = replace(SETTINGS, exclude_title_words=["Senior"])
+    jobs = [_job("1", "Senior Python Developer"), _job("2", "Lead Developer")]
+
+    run = run_ingestion(session, settings, [FakeSource("fake", jobs)])
+
+    assert [j["title"] for j in client.get("/jobs").json()] == ["Lead Developer"]
+    assert run.counts["fake"]["skipped_senior"] == 1
+
+
+def test_senior_in_brackets_is_optional_and_kept(client, session):
+    titles = ["(Senior) Data Scientist (m/w/d)", "( Sr. ) Python Developer", "Software Engineer (Senior)"]
+    jobs = [_job(str(i), title) for i, title in enumerate(titles)]
+
+    run = run_ingestion(session, SETTINGS, [FakeSource("fake", jobs)])
+
+    assert run.counts["fake"]["new"] == 3

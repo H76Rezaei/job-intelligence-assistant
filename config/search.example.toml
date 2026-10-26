@@ -10,6 +10,11 @@ keywords = ["Python", "Backend"]
 # Also search for fully remote jobs anywhere in Germany
 remote_germany = true
 
+# A job whose title contains one of these words (whole word, any case) is never stored.
+# Titles that also say Junior, Mid, Entry, Einsteiger or Berufseinsteiger are kept.
+# Only the title counts, never the description. Leave out to use this default list.
+exclude_title_words = ["Senior", "Sr.", "Lead", "Principal", "Staff", "Head of", "Leiter", "Teamleiter"]
+
 # A job not seen for this many days counts as reopened
 reopen_after_days = 60
 

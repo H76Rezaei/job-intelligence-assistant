@@ -48,6 +48,12 @@ The ingestion command gains a LinkedIn source. It reads LinkedIn's public job se
 32. As a developer, I want the adapter to only fetch and map, never write to the database, so that storage rules stay in one place.
 33. As a developer, I want LinkedIn tests to run against saved HTML samples with made-up job data, so that tests never call LinkedIn and the repo holds no real postings.
 34. As a developer, I want the pause and retry wait injectable, so that tests run instantly.
+35. As a job seeker, I want jobs whose title says Senior (or Sr., Lead, Principal, Staff, Head of, Leiter, Teamleiter) skipped by every source, so that senior roles never reach my dataset.
+36. As a job seeker, I want a job kept when only its description mentions seniority or years of experience, so that the filter never drops a job that does not call itself senior.
+37. As a job seeker, I want a title that also says Junior, Mid, Entry, Einsteiger or Berufseinsteiger kept, so that roles open to both levels are not lost.
+38. As a job seeker, I want senior jobs skipped before the detail request, so that they cost no LinkedIn request.
+39. As a job seeker, I want senior jobs already stored removed once, except jobs I have an application for, so that my dataset matches the rule.
+40. As a job seeker, I want pasted jobs never filtered, so that a job I add myself is always saved.
 
 ## Implementation Decisions
 
@@ -93,6 +99,12 @@ The ingestion command gains a LinkedIn source. It reads LinkedIn's public job se
 
 **Command and summary**
 - The summary line for LinkedIn adds "rate-limited" when that happened, and the number of searches still waiting for the next run.
+
+**Senior filter (all sources)**
+- Only the title decides. A job is skipped when its title contains a configured word as a whole word, in any case; default list: Senior, Sr., Lead, Principal, Staff, Head of, Leiter, Teamleiter. The list is an optional `exclude_title_words` setting.
+- A title that also contains Junior, Mid, Entry, Einsteiger or Berufseinsteiger is kept.
+- The filter runs in the ingestion run after the Germany filter and before any detail request, and is counted as `skipped_senior`. Paste import is not filtered.
+- A one-off data migration deletes stored jobs matching the default rule, with their snapshots and source links, and keeps every job that has an application.
 
 **Frontend**
 - The job page's source labels gain "LinkedIn".

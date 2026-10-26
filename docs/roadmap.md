@@ -277,6 +277,7 @@ Nothing under Later has a date. Each item starts after Step 7, or earlier if dai
 | 23 Oct 2026 | Step 3 becomes collectors for LinkedIn, StepStone, Xing and get-in-IT, once a day each, in the private repo |
 | 26 Oct 2026 | Collectors live in this public repo, not a private one. Step 3 runs on your computer only; Azure waits for Step 7. LinkedIn first, the other sites each after their own live check |
 | 26 Oct 2026 | LinkedIn: same titles, centers and remote search as every source, titles combined into `OR` groups, newest first. 120 requests per run, 20–30 s pause, one retry after 90 s on a 429. Each search keeps its own window in the run counts, and unfinished searches go first next run, so nothing is skipped |
+| 26 Oct 2026 | Senior jobs are never stored, from any source: only the title decides (Senior, Sr., Lead, Principal, Staff, Head of, Leiter, Teamleiter, configurable), titles that also say Junior, Mid or Einsteiger are kept, paste import is not filtered. Stored senior jobs without an application are removed once |
 
 ## Definition of done
 

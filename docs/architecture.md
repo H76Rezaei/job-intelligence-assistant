@@ -27,7 +27,7 @@ Solid lines exist or are being built now. Dotted lines are planned; the step num
 - **Snapshots:** the text of a posting is stored as a snapshot and never overwritten. An application pins the snapshot it was made for.
 - **Ingestion (Step 2):** source adapters only fetch and map data; one shared storage function decides what is new. The same job is the same cleaned-up title and company, across sources and cities. Details: [the ingestion spec](../.scratch/ingestion/spec.md).
 - **No agent:** the workflow is deterministic code. The LLM is called in three fixed places (requirement extraction, classification against profile evidence, drafting and checking documents), with no tools.
-- **Private parts:** collectors that read sites without an official API live in a separate private repo and load as adapters when present. Personal data and search settings stay out of this repo.
+- **Private parts:** personal data and search settings stay out of this repo. Collectors that read sites without an official API are ordinary ingestion sources in this repo.
 
 ## Not built yet
 

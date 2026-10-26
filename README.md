@@ -15,7 +15,7 @@ Searching for jobs by hand means checking the same boards every day, reading the
 | Part | What it does | State |
 | --- | --- | --- |
 | Ingestion | Fetches postings from the Bundesagentur für Arbeit (including jobs it copies from other boards) and from a paste form. Recognises the same job across sources and cities | Built |
-| Collectors | Daily collectors for LinkedIn, StepStone, Xing and get-in-IT, in a separate private repo | Planned |
+| Collectors | Daily collectors for LinkedIn, StepStone, Xing and get-in-IT, as ingestion sources | Planned |
 | Profile | My skills, projects and experience, each with evidence | Partly built |
 | Fit score | Extracts requirements from a posting and checks them against my evidence. Only jobs at or above 50% are shown, with the reasons | Planned |
 | Documents | CV and cover letter drafts in Word and PDF, in the posting's language, using only real evidence | Planned |

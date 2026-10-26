@@ -11,7 +11,7 @@ This is a tool you use every day to make your own job search easier: it finds ne
 - **Job text is never overwritten.** Snapshots keep the exact posting used for an application.
 - **No automatic applying.** You review, decide and send.
 - **Keep it simple.** Add tests, config, files and abstractions only when needed.
-- **Public repo, no personal data.** Your real profile, search settings, cover letter instructions and secrets never enter the repo. The LinkedIn adapter lives in a separate private repo.
+- **Public repo, no personal data.** Your real profile, search settings, cover letter instructions and secrets never enter the repo. The collectors live in this repo too (changed 26 Oct 2026).
 - **A clear README.** It explains the problem, the architecture, how to run it and how Claude Code and the skills are used.
 
 ### How we work
@@ -48,7 +48,7 @@ Seven steps, in this order. The weeks are a rough guess at 10 hours a week, and 
 | --- | --- | --- |
 | 1 | Claude Code installed, skills and `CLAUDE.md` set up, tickets as local files, clear README, outdated docs fixed | 1 |
 | 2 | Ingestion: Bundesagentur jobs stored daily by one command, paste import for jobs you find yourself | 2 |
-| 3 | Collectors for LinkedIn, StepStone, Xing and get-in-IT in a private repo, tested on Azure with a fallback | 5 |
+| 3 | Collectors for LinkedIn, StepStone, Xing and get-in-IT, run on your computer (Azure in Step 7) | 5 |
 | 4 | Your profile with evidence for every skill | 1.5 |
 | 5 | Requirement extraction and the 50% fit score, with a visible breakdown | 2 |
 | 6 | Tailored CV and cover letter drafts in Word and PDF | 2 |
@@ -85,7 +85,7 @@ Ingestion means pulling postings from an outside source into your own database, 
 
 ### Step 3: Collectors (LinkedIn, StepStone, Xing, get-in-IT)
 
-1. Build collectors that read public job pages without a login, in this order: LinkedIn, StepStone, Xing, get-in-IT. They are adapters in a separate private repo that the app loads when it is present.
+1. Build collectors that read public job pages without a login, in this order: LinkedIn, StepStone, Xing, get-in-IT. They are ingestion sources in this repo, next to the Bundesagentur. LinkedIn is planned in `.scratch/linkedin/`.
 2. Before building each one, test the live site: blocking, terms and page structure.
 3. Low volume, one run a day each, and results go through the same storage and duplicate checks as every other source.
 4. Test them on Azure first. If a site blocks Azure addresses, run the same adapter on your own computer on a schedule and send the results to the app.
@@ -189,9 +189,9 @@ Discovery is plain scheduled code that calls source APIs. The Bundesagentur alon
 | --- | --- | --- |
 | [Bundesagentur API](https://github.com/bundesAPI/jobsuche-api) | Step 2 | Search by keyword, location, radius, days since published and home office, plus a detail call with the full text. Includes postings copied from external boards. Documentation is unofficial and outdated. The portal terms forbid automated data collection (see Risks) |
 | Manual paste import | Step 2 | Any job you find yourself, including Indeed results from a Claude chat |
-| LinkedIn collector | Step 3 | Public pages, no login, private repo. Against LinkedIn's terms, and cloud addresses may be blocked |
-| StepStone collector | Step 3 | No public API. Public pages, private repo. Its terms forbid scraping |
-| Xing collector | Step 3 | No public job API for your own app known (unconfirmed). Public pages, private repo. Terms to be checked |
+| LinkedIn collector | Step 3 | Public guest search and job pages, no login. Against LinkedIn's terms, rate-limits fast requests (429), and cloud addresses may be blocked |
+| StepStone collector | Step 3 | No public API. Public pages. Its terms forbid scraping |
+| Xing collector | Step 3 | No public job API for your own app known (unconfirmed). Public pages. Terms to be checked |
 | get-in-IT collector | Step 3 | No public API known. Some of its jobs already arrive through the Bundesagentur. Terms to be checked |
 | [Arbeitnow](https://www.arbeitnow.com/blog/job-board-api) | Later | Free, no key. Fields and terms unconfirmed |
 | freehire.me | Later | Public JSON API, tech-first, third-party hosted. Germany coverage to be tested |
@@ -209,7 +209,7 @@ Three risks need your attention. The rest is routine.
 
 | Risk | What could happen | What we do |
 | --- | --- | --- |
-| LinkedIn, StepStone, Xing, get-in-IT | Scraping breaks LinkedIn's and StepStone's terms; Xing's and get-in-IT's are still to be checked. The pages can change or block requests without notice, and cloud addresses are likely to be blocked faster than a home connection (expected, not verified) | Private repo for the adapters, no login, low volume, once a day, fallback on your computer. The rest of the app works without them |
+| LinkedIn, StepStone, Xing, get-in-IT | Scraping breaks LinkedIn's and StepStone's terms; Xing's and get-in-IT's are still to be checked. The pages can change or block requests without notice, and cloud addresses are likely to be blocked faster than a home connection (expected, not verified) | No login, low volume with long pauses, once a day, fallback on your computer. The rest of the app works without them |
 | Azure student plan | Credit ends after 12 months, renewal needs student status, use is limited to non-commercial work | Know the end date, keep the app single-user, decide before the credit runs out whether to move to pay-as-you-go |
 | Bundesagentur API | Unofficial interface that changed field names in Aug 2026. The [portal terms](https://www.arbeitsagentur.de/nutzungsbedingungen) (§2a(3), 8 Jul 2026) forbid robots and using its interfaces against the BA's intended purpose for data collection | Personal use only, runs you start yourself, a hard cap on requests per run. Paste import is the fallback if access breaks or is blocked |
 
@@ -275,6 +275,8 @@ Nothing under Later has a date. Each item starts after Step 7, or earlier if dai
 | 23 Oct 2026 | Several search centers, each with its own radius, plus Germany-wide remote. Settings in `config/search.toml`, not in the repo |
 | 23 Oct 2026 | Bundesagentur request cap: 500 until the first complete run, then 300 per daily run. A capped run continues in the next run without losing jobs |
 | 23 Oct 2026 | Step 3 becomes collectors for LinkedIn, StepStone, Xing and get-in-IT, once a day each, in the private repo |
+| 26 Oct 2026 | Collectors live in this public repo, not a private one. Step 3 runs on your computer only; Azure waits for Step 7. LinkedIn first, the other sites each after their own live check |
+| 26 Oct 2026 | LinkedIn: same titles, centers and remote search as every source, titles combined into `OR` groups, newest first. 120 requests per run, 20–30 s pause, one retry after 90 s on a 429. Each search keeps its own window in the run counts, and unfinished searches go first next run, so nothing is skipped |
 
 ## Definition of done
 

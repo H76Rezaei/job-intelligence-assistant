@@ -12,7 +12,7 @@ import time
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, NoReturn
 from urllib.parse import urlsplit, urlunsplit
 
 import httpx
@@ -60,6 +60,8 @@ class _Query:
 
 class LinkedIn:
     name = "linkedin"
+    # Keeps a window per search, so a stopped run continues where it stopped (see run.py)
+    resumable = True
 
     def __init__(
         self,
@@ -73,19 +75,34 @@ class LinkedIn:
         self.requests_left = 0
         self.pause_seconds: tuple[float, float] = (0, 0)
         self._sent_any = False
+        # Per search key of the last search: True once it was read to the end
+        self.searches_finished: dict[str, bool] = {}
 
-    def search(self, settings: SearchSettings, since: datetime) -> Iterable[FetchedJob]:
-        """Every title group around every center, plus remote jobs in Germany; each job once."""
+    def search(
+        self,
+        settings: SearchSettings,
+        since: datetime,
+        windows: dict[str, datetime] | None = None,
+    ) -> Iterable[FetchedJob]:
+        """Every title group around every center, plus remote jobs in Germany; each job once.
+
+        Each search looks back to its own time in `windows`, or to `since` when
+        it has none yet. The searches waiting longest go first.
+        """
         self.requests_left = settings.linkedin.max_requests_per_run
         self.pause_seconds = settings.linkedin.pause_seconds
         self._sent_any = False
-        seconds = int((datetime.now(timezone.utc) - since).total_seconds())
+        query_since = {query.key: (windows or {}).get(query.key, since) for query in self._queries(settings)}
+        queries = sorted(self._queries(settings), key=lambda query: query_since[query.key])
+        self.searches_finished = {query.key: False for query in queries}
         returned: set[str] = set()
-        for query in self._queries(settings):
+        for query in queries:
+            seconds = int((datetime.now(timezone.utc) - query_since[query.key]).total_seconds())
             for job in self._search_pages(query, seconds):
                 if job.source_id not in returned:
                     returned.add(job.source_id)
                     yield job
+            self.searches_finished[query.key] = True
 
     def _queries(self, settings: SearchSettings) -> Iterable[_Query]:
         keywords = settings.keywords
@@ -115,6 +132,7 @@ class LinkedIn:
             for card in cards:
                 job = _to_fetched_job(card)
                 if job is not None:
+                    job.search_key = query.key
                     job.raw["search"] = query.key
                     yield job
             if len(cards) < PAGE_SIZE:
@@ -138,7 +156,7 @@ class LinkedIn:
             response = self.client.get(url, params=params, headers=HEADERS)
             if response.is_redirect or response.status_code == BLOCKED:
                 log.warning("LinkedIn blocked %s with %s", url, response.status_code)
-                raise RateLimited()
+                self._give_up()
             if response.status_code != 429:
                 response.raise_for_status()
                 return response.text
@@ -146,6 +164,11 @@ class LinkedIn:
                 wait = RATE_LIMIT_WAITS_SECONDS[attempt]
                 log.info("LinkedIn rate-limited %s; waiting %s s", url, wait)
                 self.sleep(wait)
+        self._give_up()
+
+    def _give_up(self) -> NoReturn:
+        """No further request in this run, also from a search still being read."""
+        self.requests_left = 0
         raise RateLimited()
 
     def fetch_details(self, job: FetchedJob) -> FetchedJob:

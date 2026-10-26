@@ -86,7 +86,7 @@ def test_run_stores_new_jobs_with_full_text(client, session):
     assert run.counts["fake"] == {
         "fetched": 2, "new": 2, "reopened": 0, "known": 0, "skipped_non_germany": 0, "detail_errors": 0,
         "skipped_senior": 0, "skipped_by_cap": 0, "capped": False, "rate_limited": False,
-        "failed": None,
+        "searches_waiting": 0, "search_since": None, "failed": None,
     }
     assert run.finished_at > run.started_at
 
@@ -434,3 +434,90 @@ def test_jobs_found_before_a_stop_in_the_search_still_get_their_details(client, 
     counts = run.counts["fake"]
     assert (counts["new"], counts["skipped_by_cap"], counts["rate_limited"]) == (2, 0, True)
     assert len(client.get("/jobs").json()) == 2
+
+
+class ResumableSource:
+    """Has one search per key; `unfinished` searches stop before their last page."""
+
+    resumable = True
+
+    def __init__(self, jobs_by_search, unfinished=(), allowed_details=None, name="fake"):
+        self.name = name
+        self.jobs_by_search = jobs_by_search
+        self.unfinished = set(unfinished)
+        self.allowed_details = allowed_details
+        self.windows = []
+        self.detail_calls = []
+        self.searches_finished = {}
+
+    def search(self, settings, since, windows):
+        self.windows.append((since, dict(windows)))
+        for key, jobs in self.jobs_by_search.items():
+            self.searches_finished[key] = key not in self.unfinished
+            for job in jobs:
+                yield replace(job, search_key=key)
+
+    def fetch_details(self, job):
+        if self.allowed_details is not None and len(self.detail_calls) >= self.allowed_details:
+            raise RequestCapReached()
+        self.detail_calls.append(job.source_id)
+        return replace(job, description=f"Full text of {job.title}")
+
+
+def test_new_searches_look_back_seven_days_and_finished_ones_move_to_the_run_start(session):
+    first = ResumableSource({"a": [], "b": []})
+
+    run = run_ingestion(session, SETTINGS, [first])
+    second = ResumableSource({"a": [], "b": []})
+    run_ingestion(session, SETTINGS, [second])
+
+    assert first.windows == [(_about(_days_ago(7)), {})]
+    moved = run.started_at - timedelta(hours=2)
+    assert second.windows[0][1] == {"a": moved, "b": moved}
+    assert run.counts["fake"]["searches_waiting"] == 0
+
+
+def test_unfinished_search_keeps_its_old_window(session):
+    run_ingestion(session, SETTINGS, [ResumableSource({"a": [], "b": []}, unfinished=["b"])])
+    source = ResumableSource({"a": [], "b": []})
+
+    run_ingestion(session, SETTINGS, [source])
+
+    windows = source.windows[0][1]
+    assert windows["b"] == _about(_days_ago(7))
+    assert windows["a"] > _days_ago(1)
+
+
+def test_search_with_a_job_skipped_by_the_cap_stays_unfinished(client, session):
+    jobs = {"a": [_job("1", "Python Developer")], "b": [_job("2", "Data Engineer")]}
+
+    run = run_ingestion(session, SETTINGS, [ResumableSource(jobs, allowed_details=1)])
+
+    counts = run.counts["fake"]
+    assert counts["searches_waiting"] == 1
+    assert datetime.fromisoformat(counts["search_since"]["b"]) == _about(_days_ago(7))
+    assert datetime.fromisoformat(counts["search_since"]["a"]) > _days_ago(1)
+
+
+def test_failed_run_keeps_the_previous_windows(session):
+    run_ingestion(session, SETTINGS, [ResumableSource({"a": []})])
+
+    class Broken(ResumableSource):
+        def search(self, settings, since, windows):
+            raise RuntimeError("down")
+            yield
+
+    run_ingestion(session, SETTINGS, [Broken({"a": []})])
+    source = ResumableSource({"a": []})
+    run_ingestion(session, SETTINGS, [source])
+
+    assert source.windows[0][1]["a"] > _days_ago(1)
+
+
+def test_windows_are_kept_per_source(session):
+    run_ingestion(session, SETTINGS, [ResumableSource({"a": []}, name="other")])
+    source = ResumableSource({"a": []})
+
+    run_ingestion(session, SETTINGS, [source])
+
+    assert source.windows[0][1] == {}

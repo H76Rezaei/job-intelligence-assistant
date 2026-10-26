@@ -24,6 +24,22 @@ class IngestionRunRepository:
         )
         return self.session.scalars(stmt).first()
 
+    def latest_search_since(self, source: str) -> dict[str, datetime]:
+        """Per search of a resumable source, where its next window starts.
+
+        Taken from the latest run that recorded it; a run where the source
+        failed records none, so the one before it counts.
+        """
+        since = IngestionRun.counts[source]["search_since"]
+        stmt = (
+            select(since)
+            .where(IngestionRun.counts.has_key(source), since.astext.is_not(None))
+            .order_by(IngestionRun.started_at.desc())
+            .limit(1)
+        )
+        stored = self.session.scalars(stmt).first() or {}
+        return {key: datetime.fromisoformat(value) for key, value in stored.items()}
+
     def last_successful_start(self, source: str) -> datetime | None:
         """When the latest complete run of this source started.
 

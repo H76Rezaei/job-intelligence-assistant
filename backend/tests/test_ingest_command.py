@@ -95,6 +95,7 @@ def test_summary_shows_a_rate_limited_source(settings_file, monkeypatch, capsys)
     counts = {
         "fetched": 30, "new": 5, "reopened": 0, "known": 3, "skipped_non_germany": 0, "skipped_senior": 2,
         "detail_errors": 0, "skipped_by_cap": 20, "capped": True, "rate_limited": True, "failed": None,
+        "searches_waiting": 9, "search_since": {},
     }
 
     class Run:
@@ -109,3 +110,4 @@ def test_summary_shows_a_rate_limited_source(settings_file, monkeypatch, capsys)
     out = capsys.readouterr().out
     assert "linkedin: rate-limited" in out
     assert "20 new or reopened jobs" in out
+    assert "linkedin: 9 searches wait for the next run" in out

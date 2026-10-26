@@ -19,3 +19,5 @@ class FetchedJob:
     employment_type: str | None = None
     work_mode: WorkMode | None = None
     raw: dict[str, Any] = field(default_factory=dict)
+    # Resumable sources: the search that found the job (see ResumableSource)
+    search_key: str | None = None

@@ -31,3 +31,20 @@ class Source(Protocol):
     def fetch_details(self, job: FetchedJob) -> FetchedJob:
         """The same posting with its full text and the detail response in `raw`."""
         ...
+
+
+class ResumableSource(Source, Protocol):
+    """A source with a window per search, for sources that often stop part-way.
+
+    The run passes each search's window from the last recorded run; searches
+    without one look back to `since`. Each fetched job carries its
+    `search_key`, and after the search `searches_finished` tells which
+    searches were read to the end.
+    """
+
+    resumable: bool
+    searches_finished: dict[str, bool]
+
+    def search(  # type: ignore[override]
+        self, settings: SearchSettings, since: datetime, windows: dict[str, datetime]
+    ) -> Iterable[FetchedJob]: ...

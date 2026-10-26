@@ -150,7 +150,7 @@ def test_job_found_by_several_searches_is_returned_once():
     jobs = list(_adapter([]).search(settings, since=_since(1)))
 
     assert [j.source_id for j in jobs] == ["4000000001"]
-    assert jobs[0].raw["search"] == "Python Developer @ Testhausen"
+    assert jobs[0].search_key == jobs[0].raw["search"] == "Python Developer @ Testhausen"
 
 
 def test_every_request_after_the_first_waits_a_random_pause():
@@ -238,3 +238,53 @@ def test_block_during_details_stops_the_source_instead_of_trying_every_job():
 def test_other_unexpected_answer_fails_the_request():
     with pytest.raises(httpx.HTTPStatusError):
         list(_adapter([], responses=[httpx.Response(500)]).search(ONE_SEARCH, since=_since(1)))
+
+
+TWO_SEARCHES = replace(ONE_SEARCH, remote_germany=True)
+CENTER_KEY = "Python Developer @ Testhausen"
+REMOTE_KEY = "Python Developer @ remote"
+
+
+def _window(request):
+    return int(request.url.params["f_TPR"].removeprefix("r")) / 86400
+
+
+def test_each_search_uses_its_own_window_and_new_ones_the_default():
+    requests = []
+
+    list(_adapter(requests).search(TWO_SEARCHES, _since(7), windows={CENTER_KEY: _since(1)}))
+
+    assert [round(_window(r)) for r in _search_requests(requests)] == [7, 1]
+
+
+def test_searches_waiting_longest_go_first():
+    requests = []
+    windows = {CENTER_KEY: _since(1), REMOTE_KEY: _since(3)}
+
+    list(_adapter(requests).search(TWO_SEARCHES, _since(7), windows=windows))
+
+    assert [r.url.params["location"] for r in _search_requests(requests)] == ["Germany", "Testhausen"]
+
+
+def test_searches_report_whether_they_were_read_to_the_end():
+    adapter = _adapter([])
+
+    with pytest.raises(RequestCapReached):
+        list(adapter.search(_capped(TWO_SEARCHES, 1), _since(7), windows={}))
+
+    assert adapter.searches_finished == {CENTER_KEY: True, REMOTE_KEY: False}
+
+
+def test_block_during_details_ends_the_searches_too():
+    requests = []
+    adapter = _adapter(requests)
+    found = adapter.search(TWO_SEARCHES, _since(7), windows={})
+    job = next(found)
+    adapter.client = httpx.Client(transport=httpx.MockTransport(lambda request: httpx.Response(999)))
+
+    with pytest.raises(RateLimited):
+        adapter.fetch_details(job)
+    with pytest.raises(RequestCapReached):
+        list(found)
+
+    assert len(requests) == 1

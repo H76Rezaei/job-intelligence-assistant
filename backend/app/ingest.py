@@ -51,6 +51,8 @@ def main(argv: list[str] | None = None) -> int:
                     f"  {name}: {stop}; {counts['skipped_by_cap']} new or reopened "
                     "jobs found so far (and any not yet searched) will be fetched by the next run"
                 )
+            if counts["searches_waiting"]:
+                print(f"  {name}: {counts['searches_waiting']} searches wait for the next run")
     return 0
 
 

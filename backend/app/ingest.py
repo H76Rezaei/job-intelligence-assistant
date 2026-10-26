@@ -8,8 +8,9 @@ from app.database import SessionLocal
 from app.ingestion.run import run_ingestion
 from app.ingestion.settings import load_settings
 from app.ingestion.sources.bundesagentur import Bundesagentur
+from app.ingestion.sources.linkedin import LinkedIn
 
-SOURCES = {"bundesagentur": Bundesagentur}
+SOURCES = {"bundesagentur": Bundesagentur, "linkedin": LinkedIn}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -45,8 +46,9 @@ def main(argv: list[str] | None = None) -> int:
                 f"{counts['detail_errors']} detail errors"
             )
             if counts["capped"]:
+                stop = "rate-limited" if counts["rate_limited"] else "reached the request cap"
                 print(
-                    f"  {name}: reached the request cap; {counts['skipped_by_cap']} new or reopened "
+                    f"  {name}: {stop}; {counts['skipped_by_cap']} new or reopened "
                     "jobs found so far (and any not yet searched) will be fetched by the next run"
                 )
     return 0

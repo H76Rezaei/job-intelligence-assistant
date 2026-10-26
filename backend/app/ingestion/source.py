@@ -7,7 +7,11 @@ from app.ingestion.settings import SearchSettings
 
 
 class RequestCapReached(Exception):
-    """The source used up `max_requests_per_run`; no further requests are sent."""
+    """The source stops sending requests for this run: it used up its request cap."""
+
+
+class RateLimited(RequestCapReached):
+    """The site refuses further requests (rate limit or block); handled like the cap."""
 
 
 class Source(Protocol):

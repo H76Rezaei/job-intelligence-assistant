@@ -26,8 +26,8 @@ The ingestion command gains a LinkedIn source. It reads LinkedIn's public job se
 10. As a job seeker, I want a missed day covered by the next run, so that skipping a day loses no jobs.
 11. As a job seeker, I want at most 120 LinkedIn requests per run, so that the volume stays low.
 12. As a job seeker, I want a random pause of 20–30 seconds between LinkedIn requests, so that the traffic looks like a person and avoids rate limits.
-13. As a job seeker, I want a rate-limited request (429) retried once after 90 seconds, so that a short limit does not end the run.
-14. As a job seeker, I want a second 429 to stop LinkedIn for this run like reaching the cap, so that I do not get blocked and the rest waits for the next run.
+13. As a job seeker, I want a rate-limited request (429) retried after 5 minutes, and again after 15 minutes, so that a short limit does not end the run.
+14. As a job seeker, I want a third 429 in a row, a login wall or a block to stop LinkedIn for this run like reaching the cap, so that I do not get blocked and the rest waits for the next run.
 15. As a job seeker, I want searches a capped run did not finish to be done first by the next run, with their old window, so that no title or place is ever skipped.
 16. As a job seeker, I want a search to count as finished only when all its pages were read and every new job it found got its full text, so that jobs skipped by the cap are picked up later.
 17. As a job seeker, I want the full posting text fetched only for jobs not yet in my database, so that known jobs cost no extra request.
@@ -83,8 +83,9 @@ The ingestion command gains a LinkedIn source. It reads LinkedIn's public job se
 **Requests**
 - LinkedIn cap: 120 requests per run, the same for the first run (continuation replaces the larger first-run cap). Every request counts, retries included.
 - A random pause of 20–30 seconds before every request after the first.
-- On 429: wait 90 seconds and retry once. A second 429 stops LinkedIn for this run and is handled like reaching the cap, with a separate "rate-limited" flag in the counts.
-- Any other unexpected response (for example a redirect to a login wall) fails the request; a failed search ends the source for this run and is logged.
+- On 429: wait 5 minutes and retry; on a second 429 wait 15 minutes and retry. A third 429 in a row stops LinkedIn for this run and is handled like reaching the cap, with a separate "rate-limited" flag in the counts. A redirect (login wall) or LinkedIn's 999 block is handled the same way, so a blocked run does not spend its remaining requests. (Changed 26 Oct 2026 after the first real run was rate-limited after 25 requests at 20–30 second pauses.)
+- Any other unexpected response fails the request; a failed search ends the source for this run and is logged.
+- The run handles each job as soon as the search finds it (filters, then details), for every source, so a stop part-way through the searches keeps the details fetched so far. (Changed 26 Oct 2026: before, all searches ran first, and a stop during them stored nothing.)
 
 **Mapping to a fetched job**
 - Source ID: the LinkedIn job ID. URL: the job URL without tracking parameters.

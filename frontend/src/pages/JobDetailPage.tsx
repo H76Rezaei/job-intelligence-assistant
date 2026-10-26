@@ -7,6 +7,7 @@ import ApplicationControls from "../components/ApplicationControls"
 const SOURCE_LABELS: Record<string, string> = {
   paste: "Added by me",
   bundesagentur: "Bundesagentur",
+  linkedin: "LinkedIn",
 }
 
 function JobDetailPage() {

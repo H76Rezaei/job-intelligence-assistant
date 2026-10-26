@@ -5,8 +5,9 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.ingestion.fetched_job import FetchedJob
 from app.ingestion.settings import SearchSettings
-from app.ingestion.source import RequestCapReached, Source
+from app.ingestion.source import RateLimited, RequestCapReached, Source
 from app.ingestion.storage import find_existing_job, store_job
 from app.matching import is_senior_title
 from app.models.ingestion_run import IngestionRun
@@ -35,6 +36,8 @@ class SourceCounts:
     detail_errors: int = 0
     skipped_by_cap: int = 0
     capped: bool = False
+    # The site refused further requests; handled like the cap
+    rate_limited: bool = False
     failed: str | None = None
 
 
@@ -95,52 +98,14 @@ def _ingest_source(
     # A savepoint per source: if the source itself fails, none of its writes are kept
     savepoint = session.begin_nested()
     try:
-        found = []
+        # Each job is handled as soon as the search finds it, so a stop part-way
+        # through the searches keeps the details fetched so far
         try:
             for fetched in source.search(settings, since):
-                found.append(fetched)
-        except RequestCapReached:
+                _handle_job(session, settings, source, fetched, counts, run_id)
+        except RequestCapReached as stop:
             counts.capped = True
-            log.warning(
-                "Source %s: the search alone used the whole cap of %s requests, so no "
-                "details were fetched. Raise the cap or use fewer keywords.",
-                source.name, settings.max_requests_per_run,
-            )
-
-        for fetched in found:
-            counts.fetched += 1
-            # Adapters set "DE" for jobs in Germany, including remote jobs without a location
-            if fetched.country != "DE":
-                counts.skipped_non_germany += 1
-                continue
-            if is_senior_title(fetched.title, settings.exclude_title_words):
-                counts.skipped_senior += 1
-                continue
-            existing = find_existing_job(session, source.name, fetched)
-            reopened = existing is not None and _unseen_for(existing, settings.reopen_after_days)
-            if existing is not None and not reopened:
-                store_job(session, source.name, fetched)
-                counts.known += 1
-                continue
-            # New and reopened jobs need their full text; skipped ones stay as they are
-            if counts.capped:
-                counts.skipped_by_cap += 1
-                continue
-            try:
-                detailed = source.fetch_details(fetched)
-            except RequestCapReached:
-                counts.capped = True
-                counts.skipped_by_cap += 1
-                continue
-            except Exception:
-                log.exception("Details for %s %s failed", source.name, fetched.source_id)
-                counts.detail_errors += 1
-                continue
-            store_job(session, source.name, detailed, mark_new_in_run=run_id)
-            if reopened:
-                counts.reopened += 1
-            else:
-                counts.new += 1
+            counts.rate_limited = counts.rate_limited or isinstance(stop, RateLimited)
         savepoint.commit()
     except Exception as error:
         savepoint.rollback()
@@ -148,8 +113,56 @@ def _ingest_source(
         return SourceCounts(failed=str(error))
     if counts.capped:
         log.warning(
-            "Source %s reached the cap of %s requests; %s new or reopened jobs found so far "
+            "Source %s stopped (%s); %s new or reopened jobs found so far "
             "wait for the next run",
-            source.name, settings.max_requests_per_run, counts.skipped_by_cap,
+            source.name, _stop_reason(counts), counts.skipped_by_cap,
         )
     return counts
+
+
+def _handle_job(
+    session: Session,
+    settings: SearchSettings,
+    source: Source,
+    fetched: FetchedJob,
+    counts: SourceCounts,
+    run_id: int,
+) -> None:
+    counts.fetched += 1
+    # Adapters set "DE" for jobs in Germany, including remote jobs without a location
+    if fetched.country != "DE":
+        counts.skipped_non_germany += 1
+        return
+    if is_senior_title(fetched.title, settings.exclude_title_words):
+        counts.skipped_senior += 1
+        return
+    existing = find_existing_job(session, source.name, fetched)
+    reopened = existing is not None and _unseen_for(existing, settings.reopen_after_days)
+    if existing is not None and not reopened:
+        store_job(session, source.name, fetched)
+        counts.known += 1
+        return
+    # New and reopened jobs need their full text; skipped ones stay as they are
+    if counts.capped:
+        counts.skipped_by_cap += 1
+        return
+    try:
+        detailed = source.fetch_details(fetched)
+    except RequestCapReached as stop:
+        counts.capped = True
+        counts.rate_limited = isinstance(stop, RateLimited)
+        counts.skipped_by_cap += 1
+        return
+    except Exception:
+        log.exception("Details for %s %s failed", source.name, fetched.source_id)
+        counts.detail_errors += 1
+        return
+    store_job(session, source.name, detailed, mark_new_in_run=run_id)
+    if reopened:
+        counts.reopened += 1
+    else:
+        counts.new += 1
+
+
+def _stop_reason(counts: SourceCounts) -> str:
+    return "rate-limited" if counts.rate_limited else "request cap reached"

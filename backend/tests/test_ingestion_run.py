@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from app.ingestion.fetched_job import FetchedJob
 from app.ingestion.run import run_ingestion
 from app.ingestion.settings import Center, SearchSettings
-from app.ingestion.source import RequestCapReached
+from app.ingestion.source import RateLimited, RequestCapReached
 from app.models.ingestion_run import IngestionRun
 
 SETTINGS = SearchSettings(
@@ -85,7 +85,8 @@ def test_run_stores_new_jobs_with_full_text(client, session):
     assert [s["source"] for s in detail["sources"]] == ["fake"]
     assert run.counts["fake"] == {
         "fetched": 2, "new": 2, "reopened": 0, "known": 0, "skipped_non_germany": 0, "detail_errors": 0,
-        "skipped_senior": 0, "skipped_by_cap": 0, "capped": False, "failed": None,
+        "skipped_senior": 0, "skipped_by_cap": 0, "capped": False, "rate_limited": False,
+        "failed": None,
     }
     assert run.finished_at > run.started_at
 
@@ -341,15 +342,6 @@ def test_window_never_grows_beyond_fourteen_days(session):
     assert source.window_starts == [_about(_days_ago(14))]
 
 
-def test_cap_reached_by_the_search_alone_is_reported(session, caplog):
-    source = CappedSource("fake", [_job("1", "Job 1")], allowed_details=0, cap_during_search=True)
-
-    with caplog.at_level("WARNING"):
-        run_ingestion(session, SETTINGS, [source])
-
-    assert "search alone" in caplog.text
-
-
 def test_senior_title_is_skipped_without_a_detail_call(client, session):
     source = FakeSource("fake", [_job("1", "Senior Python Developer (m/w/d)"), _job("2", "Python Developer")])
 
@@ -412,3 +404,33 @@ def test_senior_in_brackets_is_optional_and_kept(client, session):
     run = run_ingestion(session, SETTINGS, [FakeSource("fake", jobs)])
 
     assert run.counts["fake"]["new"] == 3
+
+
+def test_rate_limit_stops_the_source_like_the_cap_and_is_recorded(client, session):
+    class RateLimitedSource(FakeSource):
+        def fetch_details(self, job):
+            if self.detail_calls:
+                raise RateLimited()
+            return super().fetch_details(job)
+
+    jobs = [_job("1", "Python Developer"), _job("2", "Data Engineer"), _job("3", "Backend Developer")]
+
+    run = run_ingestion(session, SETTINGS, [RateLimitedSource("fake", jobs)])
+
+    counts = run.counts["fake"]
+    assert (counts["new"], counts["skipped_by_cap"], counts["capped"], counts["rate_limited"]) == (1, 2, True, True)
+
+
+def test_jobs_found_before_a_stop_in_the_search_still_get_their_details(client, session):
+    class StopsDuringSearch(FakeSource):
+        def search(self, settings, since):
+            yield from super().search(settings, since)
+            raise RateLimited()
+
+    source = StopsDuringSearch("fake", [_job("1", "Python Developer"), _job("2", "Data Engineer")])
+
+    run = run_ingestion(session, SETTINGS, [source])
+
+    counts = run.counts["fake"]
+    assert (counts["new"], counts["skipped_by_cap"], counts["rate_limited"]) == (2, 0, True)
+    assert len(client.get("/jobs").json()) == 2

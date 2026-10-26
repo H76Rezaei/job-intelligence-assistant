@@ -31,3 +31,9 @@ radius_km = 30
 [[centers]]
 name = "Leipzig"
 radius_km = 25
+
+# LinkedIn has its own, lower cap (also on the first run) and pauses between requests,
+# because it answers fast requests with "too many requests". Leave out to use these defaults.
+[linkedin]
+max_requests_per_run = 120
+pause_seconds = [20, 30]

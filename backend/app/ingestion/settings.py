@@ -20,6 +20,14 @@ SENIOR_TITLE_WORDS = ["Senior", "Sr.", "Lead", "Principal", "Staff", "Head of", 
 
 
 @dataclass
+class LinkedInSettings:
+    # Its own cap, the same on the first run: scraping stays low-volume
+    max_requests_per_run: int = 120
+    # A random pause in this range (seconds) before every request after the first
+    pause_seconds: tuple[float, float] = (20, 30)
+
+
+@dataclass
 class SearchSettings:
     keywords: list[str]
     centers: list[Center]
@@ -29,6 +37,7 @@ class SearchSettings:
     # Requests per source and run; the first run looks back further and gets more
     max_requests_per_run: int = 300
     max_requests_first_run: int = 500
+    linkedin: LinkedInSettings = field(default_factory=LinkedInSettings)
 
 
 def load_settings(path: Path | None = None) -> SearchSettings:
@@ -36,4 +45,9 @@ def load_settings(path: Path | None = None) -> SearchSettings:
     with open(path, "rb") as f:
         data = tomllib.load(f)
     centers = [Center(**c) for c in data.pop("centers", [])]
-    return SearchSettings(**{"keywords": [], **data, "centers": centers})
+    linkedin = data.pop("linkedin", {})
+    if "pause_seconds" in linkedin:
+        linkedin["pause_seconds"] = tuple(linkedin["pause_seconds"])
+    return SearchSettings(
+        **{"keywords": [], **data, "centers": centers, "linkedin": LinkedInSettings(**linkedin)}
+    )

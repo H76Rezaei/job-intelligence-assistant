@@ -4,7 +4,7 @@
 
 **Blocked by:** 03
 
-**Status:** ready-for-human
+**Status:** done
 
 - [x] Each search has a stable key from its titles and place
 - [x] After a run, LinkedIn's entry in the run counts holds, per search key, the "since" time for the next run: the run's start minus 2 hours for finished searches, the old time for unfinished ones. No new table, no migration
@@ -32,4 +32,5 @@ Real run (30 Oct 2026):
 - The waiting count went up from 11 to 18, so the check above is not passed. All 18 windows are unchanged from run 11 and no job is lost. The 7 searches run 11 finished were not reached, so they count as waiting again, although they only have a 3-day-old window.
 - Decided: the count now holds searches started but not finished, and those not reached whose window is older than 2 days. Tickets 06 and 07 added a time limit per search and a shorter title list.
 - Run 15: capped at 120 requests, all answered 200, 51 minutes. 225 fetched, 89 new, 82 already known, 36 senior, 18 outside Germany, 0 detail errors, 0 jobs left. 4 of 12 searches finished; 8 waiting.
-- The check above is still open: the shorter list made new searches, so run 15 did not continue run 13's. The next run on the same list closes it if it starts with the waiting searches and the count goes below 8.
+- The check above is not passed: the shorter list made new searches, so run 15 did not continue run 13's. The next run on the same list would show it, if it starts with the waiting searches and the count goes below 8.
+- Closed for now on my decision (30 Oct 2026), with that box left unticked. Tests cover the behaviour, run 13 started with a waiting search, and the capped runs kept their windows. Ticket 07's list change reset the windows once, which can miss older jobs (see that ticket).

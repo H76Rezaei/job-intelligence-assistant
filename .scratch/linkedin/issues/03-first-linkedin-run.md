@@ -22,12 +22,17 @@
 - [x] Seam 3 tests cover the `[linkedin]` table, its defaults and the summary line
 
 **Real-run checks (Claude does these and records the results below, without naming my titles or places):**
-- [ ] A real `--source linkedin` run with my settings; summary recorded
-- [ ] `OR` check: 2–3 of my titles searched alone and as one group, all pages, job IDs compared; if the group misses jobs, make the groups smaller
-- [ ] Remote check: stored jobs found by the remote search checked for remote wording (remote, Homeoffice, mobiles Arbeiten, 100 % mobil); if most are not remote, switch the remote search off for LinkedIn
+- [x] A real `--source linkedin` run with my settings; summary recorded (runs 11, 13 and 15, in ticket 04)
+- [x] `OR` check: 2–3 of my titles searched alone and as one group, all pages, job IDs compared; if the group misses jobs, make the groups smaller
+- [x] Remote check: stored jobs found by the remote search checked for remote wording (remote, Homeoffice, mobiles Arbeiten, 100 % mobil); if most are not remote, switch the remote search off for LinkedIn
 - [ ] Me: I open a few LinkedIn jobs on the dashboard and judge whether they fit
 
 Notes from the build (26 Oct 2026):
 - HTML is parsed with BeautifulSoup (added to the requirements). Pages are requested in English (`Accept-Language`) so locations end in "Germany".
 - LinkedIn's `distance` is taken to be miles, so the radius in km is converted. Not yet verified.
 - Real run 1 (run 9): 25 requests, 3 rate limits, stopped during the searches. 164 fetched, 13 outside Germany, 41 senior, 3 already known from the Bundesagentur, 107 new waiting, none stored, because details came only after all searches. Led to: details right after each search, 5 and 15 minute waits on 429, and ticket 04 next.
+
+Checks (30 Oct 2026):
+- Remote check, on the 285 stored LinkedIn jobs: 46 of 75 from the remote search (61%) use remote wording, against 70 of 210 (33%) from the center searches, so the remote search stays on. Only 3 of the 75 clearly say fully remote, so many are probably hybrid or only mention home office.
+- `OR` check: 3 rare titles around one center, last 3 days, 26 requests, all answered without a rate limit. The real group of 8 was read to the end (89 jobs). Each title alone was stopped at 4 pages (40 jobs), so the "all pages" part is not met. Of the 62 different jobs found alone, the group of 8 also found 55 (89%). The 7 misses were not looked at, so they may be loose matches. A group of 3, also stopped early at 50 jobs, found 48.
+- Decided: groups stay at 8, although the rule above says to make them smaller if a group misses jobs. Groups of 4 would about double the searches, and the coverage check will show whether real jobs are missed.

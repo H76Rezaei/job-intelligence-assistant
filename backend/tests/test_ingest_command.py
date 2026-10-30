@@ -64,18 +64,22 @@ def test_linkedin_settings_default_to_a_low_cap_and_long_pauses(settings_file, s
 
     assert started[0].linkedin.max_requests_per_run == 120
     assert started[0].linkedin.pause_seconds == (20, 30)
+    assert started[0].linkedin.max_minutes_per_search == 20
 
 
 def test_linkedin_table_sets_cap_and_pauses(settings_file, started):
     settings_file(
         'keywords = ["Python"]\nremote_germany = true\n\n'
-        "[linkedin]\nmax_requests_per_run = 50\npause_seconds = [30, 45]\n"
+        "[linkedin]\nmax_requests_per_run = 50\npause_seconds = [30, 45]\nmax_minutes_per_search = 10\nkeywords = [\"AI Engineer\"]\n"
     )
 
     ingest.main([])
 
+    assert started[0].keywords == ["Python"]
+    assert started[0].linkedin.keywords == ["AI Engineer"]
     assert started[0].linkedin.max_requests_per_run == 50
     assert started[0].linkedin.pause_seconds == (30, 45)
+    assert started[0].linkedin.max_minutes_per_search == 10
 
 
 def test_exclude_title_words_are_read_from_the_settings(settings_file, started):
@@ -94,8 +98,8 @@ def test_summary_shows_a_rate_limited_source(settings_file, monkeypatch, capsys)
     settings_file('keywords = ["Python"]\nremote_germany = true\n')
     counts = {
         "fetched": 30, "new": 5, "reopened": 0, "known": 3, "skipped_non_germany": 0, "skipped_senior": 2,
-        "detail_errors": 0, "skipped_by_cap": 20, "capped": True, "rate_limited": True, "failed": None,
-        "searches_waiting": 9, "search_since": {},
+        "detail_errors": 0, "skipped_by_cap": 20, "capped": True, "rate_limited": True, "network_error": False,
+        "failed": None, "searches_waiting": 9, "search_since": {},
     }
 
     class Run:
@@ -111,3 +115,25 @@ def test_summary_shows_a_rate_limited_source(settings_file, monkeypatch, capsys)
     assert "linkedin: rate-limited" in out
     assert "20 new or reopened jobs" in out
     assert "linkedin: 9 searches wait for the next run" in out
+
+
+def test_summary_shows_a_network_error(settings_file, monkeypatch, capsys):
+    settings_file('keywords = ["Python"]\nremote_germany = true\n')
+    counts = {
+        "fetched": 30, "new": 5, "reopened": 0, "known": 3, "skipped_non_germany": 0, "skipped_senior": 2,
+        "detail_errors": 0, "skipped_by_cap": 20, "capped": True, "rate_limited": False, "network_error": True,
+        "failed": None, "searches_waiting": 9, "search_since": {},
+    }
+
+    class Run:
+        id = 7
+
+    Run.counts = {"linkedin": counts}
+    monkeypatch.setattr(ingest, "SOURCES", {"linkedin": object})
+    monkeypatch.setattr(ingest, "run_ingestion", lambda session, settings, sources: Run())
+
+    ingest.main([])
+
+    out = capsys.readouterr().out
+    assert "linkedin: network error" in out
+    assert "FAILED" not in out

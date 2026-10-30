@@ -20,7 +20,7 @@ from bs4 import BeautifulSoup, Tag
 
 from app.ingestion.fetched_job import FetchedJob
 from app.ingestion.settings import Center, SearchSettings
-from app.ingestion.source import RateLimited, RequestCapReached
+from app.ingestion.source import NetworkDown, RateLimited, RequestCapReached
 
 BASE_URL = "https://www.linkedin.com/jobs-guest/jobs/api"
 HEADERS = {
@@ -67,13 +67,16 @@ class LinkedIn:
         self,
         client: httpx.Client | None = None,
         sleep: Callable[[float], None] = time.sleep,
+        clock: Callable[[], float] = time.monotonic,
     ):
         # Redirects are not followed: LinkedIn redirects to its login wall when it blocks
         self.client = client or httpx.Client(timeout=30)
         self.sleep = sleep
+        self.clock = clock
         # Set by each search; none before that
         self.requests_left = 0
         self.pause_seconds: tuple[float, float] = (0, 0)
+        self.seconds_per_search = 0.0
         self._sent_any = False
         # Per search key of the last search: True once it was read to the end
         self.searches_finished: dict[str, bool] = {}
@@ -91,6 +94,7 @@ class LinkedIn:
         """
         self.requests_left = settings.linkedin.max_requests_per_run
         self.pause_seconds = settings.linkedin.pause_seconds
+        self.seconds_per_search = settings.linkedin.max_minutes_per_search * 60
         self._sent_any = False
         query_since = {query.key: (windows or {}).get(query.key, since) for query in self._queries(settings)}
         queries = sorted(self._queries(settings), key=lambda query: query_since[query.key])
@@ -102,10 +106,9 @@ class LinkedIn:
                 if job.source_id not in returned:
                     returned.add(job.source_id)
                     yield job
-            self.searches_finished[query.key] = True
 
     def _queries(self, settings: SearchSettings) -> Iterable[_Query]:
-        keywords = settings.keywords
+        keywords = settings.linkedin.keywords or settings.keywords
         for i in range(0, len(keywords), TITLES_PER_SEARCH):
             titles = keywords[i : i + TITLES_PER_SEARCH]
             for center in settings.centers:
@@ -126,25 +129,40 @@ class LinkedIn:
         else:
             params |= {"location": "Germany", "f_WT": REMOTE}
 
+        # Details are fetched while this generator waits, so their time counts too
+        deadline = self.clock() + self.seconds_per_search
         for start in range(0, MAX_START + 1, PAGE_SIZE):
+            if self._out_of_time(query, deadline):
+                return
             html = self._get(f"{BASE_URL}/seeMoreJobPostings/search", {**params, "start": start})
             cards = BeautifulSoup(html, "html.parser").select("div.base-search-card")
             for card in cards:
+                if self._out_of_time(query, deadline):
+                    return
                 job = _to_fetched_job(card)
                 if job is not None:
                     job.search_key = query.key
                     job.raw["search"] = query.key
                     yield job
             if len(cards) < PAGE_SIZE:
+                self.searches_finished[query.key] = True
                 return
         log.warning("Search %r has more results than LinkedIn pages through", query.key)
+        self.searches_finished[query.key] = True
+
+    def _out_of_time(self, query: _Query, deadline: float) -> bool:
+        """The search stays unfinished and keeps its window, so the next run continues it."""
+        if self.clock() < deadline:
+            return False
+        log.warning("Search %r stopped at its time limit; it continues in the next run", query.key)
+        return True
 
     def _get(self, url: str, params: dict[str, Any] | None = None) -> str:
         """GET after a pause; on 429 wait longer and retry, then give up for this run.
 
         A redirect (to the login wall) or a block also ends LinkedIn for this run,
-        so a blocked run does not spend its remaining requests. Every attempt
-        counts towards the request cap.
+        so a blocked run does not spend its remaining requests. A network error
+        does too, without a retry. Every attempt counts towards the request cap.
         """
         for attempt in range(len(RATE_LIMIT_WAITS_SECONDS) + 1):
             if self.requests_left <= 0:
@@ -153,10 +171,14 @@ class LinkedIn:
             if self._sent_any:
                 self.sleep(random.uniform(*self.pause_seconds))
             self._sent_any = True
-            response = self.client.get(url, params=params, headers=HEADERS)
+            try:
+                response = self.client.get(url, params=params, headers=HEADERS)
+            except httpx.TransportError as error:
+                log.warning("Network error on %s: %s", url, error)
+                self._give_up(NetworkDown())
             if response.is_redirect or response.status_code == BLOCKED:
                 log.warning("LinkedIn blocked %s with %s", url, response.status_code)
-                self._give_up()
+                self._give_up(RateLimited())
             if response.status_code != 429:
                 response.raise_for_status()
                 return response.text
@@ -164,12 +186,12 @@ class LinkedIn:
                 wait = RATE_LIMIT_WAITS_SECONDS[attempt]
                 log.info("LinkedIn rate-limited %s; waiting %s s", url, wait)
                 self.sleep(wait)
-        self._give_up()
+        self._give_up(RateLimited())
 
-    def _give_up(self) -> NoReturn:
+    def _give_up(self, stop: RequestCapReached) -> NoReturn:
         """No further request in this run, also from a search still being read."""
         self.requests_left = 0
-        raise RateLimited()
+        raise stop
 
     def fetch_details(self, job: FetchedJob) -> FetchedJob:
         page = BeautifulSoup(self._get(f"{BASE_URL}/jobPosting/{job.source_id}"), "html.parser")

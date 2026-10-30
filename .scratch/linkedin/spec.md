@@ -41,7 +41,7 @@ The ingestion command gains a LinkedIn source. It reads LinkedIn's public job se
 25. As a job seeker, I want reopened LinkedIn jobs handled like Bundesagentur ones, so that a reposted role shows up again after 60 days.
 26. As a job seeker, I want the LinkedIn cap and pause in my local settings file, with sensible defaults, so that I can tune them without touching code.
 27. As a job seeker, I want a failing LinkedIn run logged and skipped without affecting the Bundesagentur, so that one broken source never costs me a run.
-28. As a job seeker, I want the run summary to show LinkedIn's counts, whether it was capped or rate-limited, and how many searches are still waiting, so that I know what a run did.
+28. As a job seeker, I want the run summary to show LinkedIn's counts, whether it was capped, rate-limited or stopped by a network error, and how many searches are still waiting, so that I know what a run did.
 29. As a job seeker, I want the job page to show "LinkedIn" with a link to the posting, so that I can open the original.
 30. As a job seeker, I want the first real run to compare two single-title searches with their `OR` group once, so that I know the groups do not miss jobs.
 31. As a developer, I want all LinkedIn page parsing in one adapter module, so that a change in LinkedIn's HTML touches one place.
@@ -77,13 +77,15 @@ The ingestion command gains a LinkedIn source. It reads LinkedIn's public job se
 - Every search has its own "since" time. A search seen for the first time looks back 7 days. A finished search's next window starts at the start of the run that finished it, minus 2 hours of overlap.
 - After a run, the LinkedIn entry in the run's existing counts JSON also holds, per search key, the "since" time for the next run. Finished searches get the new time; unfinished searches keep their old one. No new table and no migration.
 - The next run reads the latest LinkedIn entry that has this map. It does the unfinished searches first, oldest "since" first, then the others.
-- A search counts as finished only when all its pages were read and every new or reopened job it found got its details. A job skipped by the cap, a failed detail call or a rate-limit stop leaves its search unfinished.
+- A search counts as finished only when all its pages were read and every new or reopened job it found got its details. A job skipped by the cap, a failed detail call, a rate-limit stop or a network error leaves its search unfinished.
 - The Bundesagentur keeps its current whole-day window logic. The shared search call changes from a day count to a "since" time (or the per-search map for LinkedIn); the Bundesagentur converts the time back to days.
 
 **Requests**
 - LinkedIn cap: 120 requests per run, the same for the first run (continuation replaces the larger first-run cap). Every request counts, retries included.
 - A random pause of 20–30 seconds before every request after the first.
+- A search stops after 20 minutes, its detail requests included, and stays unfinished with its old window, so one large search cannot use up the run. The next run reads it again from its newest results. (Added by ticket 06 after run 13 spent all 120 requests on one search.)
 - On 429: wait 5 minutes and retry; on a second 429 wait 15 minutes and retry. A third 429 in a row stops LinkedIn for this run and is handled like reaching the cap, with a separate "rate-limited" flag in the counts. A redirect (login wall) or LinkedIn's 999 block is handled the same way, so a blocked run does not spend its remaining requests. (Changed 26 Oct 2026 after the first real run was rate-limited after 25 requests at 20–30 second pauses.)
+- A network error (`httpx.TransportError`: DNS failure, connection refused or reset, timeout) on any request stops LinkedIn for this run like reaching the cap, without a retry and with a separate "network error" flag in the counts. Jobs stored so far are kept, and unfinished searches stay waiting. (Changed by ticket 05 after real run 12 lost about 100 detail fetches to one drop.)
 - Any other unexpected response fails the request; a failed search ends the source for this run and is logged.
 - The run handles each job as soon as the search finds it (filters, then details), for every source, so a stop part-way through the searches keeps the details fetched so far. (Changed 26 Oct 2026: before, all searches ran first, and a stop during them stored nothing.)
 
@@ -95,11 +97,11 @@ The ingestion command gains a LinkedIn source. It reads LinkedIn's public job se
 - Description: the text of the description HTML. Raw data: the card fields plus the description HTML and job criteria, not the whole page.
 
 **Settings**
-- The shared keywords, centers, radius and remote switch apply to LinkedIn unchanged.
-- An optional `[linkedin]` table in the settings file sets the cap and the pause range. Defaults live in code (120, 20–30 seconds). The committed example file shows the table with its defaults.
+- The shared centers, radius and remote switch apply to LinkedIn unchanged. The shared keywords apply too, unless the `[linkedin]` table has its own `keywords` list, which replaces them for LinkedIn only. (Added 30 Oct 2026 to halve the searches: LinkedIn widens a search to similar titles, so it needs fewer titles than the Bundesagentur.)
+- An optional `[linkedin]` table in the settings file sets the cap, the pause range and the time limit per search. Defaults live in code (120, 20–30 seconds, 20 minutes). The committed example file shows the table with its defaults.
 
 **Command and summary**
-- The summary line for LinkedIn adds "rate-limited" when that happened, and the number of searches still waiting for the next run.
+- The summary line for LinkedIn adds "rate-limited" or "network error" when that happened, and the number of searches still waiting for the next run: those started but not finished, and those not reached whose window is older than 2 days.
 
 **Senior filter (all sources)**
 - Only the title decides. A job is skipped when its title contains a configured word as a whole word, in any case; default list: Senior, Sr., Lead, Principal, Staff, Head of, Leiter, Teamleiter. The list is an optional `exclude_title_words` setting.

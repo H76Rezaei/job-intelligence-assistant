@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.ingestion.fetched_job import FetchedJob
 from app.ingestion.settings import SearchSettings
-from app.ingestion.source import RateLimited, RequestCapReached, Source
+from app.ingestion.source import NetworkDown, RateLimited, RequestCapReached, Source
 from app.ingestion.storage import find_existing_job, store_job
 from app.matching import is_senior_title
 from app.models.ingestion_run import IngestionRun
@@ -24,6 +24,8 @@ MAX_WINDOW_DAYS = 14
 OVERLAP = timedelta(days=1)
 # The same for each search of a resumable source, which keeps a window per search
 SEARCH_OVERLAP = timedelta(hours=2)
+# A search the run did not get to counts as waiting once its window is older than this
+BEHIND_AFTER = timedelta(days=2)
 
 
 @dataclass
@@ -40,6 +42,8 @@ class SourceCounts:
     capped: bool = False
     # The site refused further requests; handled like the cap
     rate_limited: bool = False
+    # The connection to the site failed; also handled like the cap
+    network_error: bool = False
     # Resumable sources only: searches that did not finish, and each search's next window
     searches_waiting: int = 0
     search_since: dict[str, str] | None = None
@@ -112,6 +116,8 @@ def _ingest_source(
     new_search_since = _window_start(None)
     # Searches with a job that still waits for its details
     left_unfinished: set[str] = set()
+    # Searches that found a job in this run
+    started: set[str] = set()
     # A savepoint per source: if the source itself fails, none of its writes are kept
     savepoint = session.begin_nested()
     try:
@@ -124,14 +130,14 @@ def _ingest_source(
                 else source.search(settings, since)
             )
             for fetched in found:
+                started.add(fetched.search_key)
                 if not _handle_job(session, settings, source, fetched, counts, run.id):
                     left_unfinished.add(fetched.search_key)
         except RequestCapReached as stop:
-            counts.capped = True
-            counts.rate_limited = counts.rate_limited or isinstance(stop, RateLimited)
+            _record_stop(counts, stop)
         if resumable:
             _record_search_windows(
-                counts, source.searches_finished, left_unfinished, windows, new_search_since, run.started_at
+                counts, source.searches_finished, left_unfinished, started, windows, new_search_since, run.started_at
             )
         savepoint.commit()
     except Exception as error:
@@ -177,8 +183,7 @@ def _handle_job(
     try:
         detailed = source.fetch_details(fetched)
     except RequestCapReached as stop:
-        counts.capped = True
-        counts.rate_limited = isinstance(stop, RateLimited)
+        _record_stop(counts, stop)
         counts.skipped_by_cap += 1
         return False
     except Exception:
@@ -197,20 +202,35 @@ def _record_search_windows(
     counts: SourceCounts,
     searches_finished: dict[str, bool],
     left_unfinished: set[str],
+    started: set[str],
     windows: dict[str, datetime],
     new_search_since: datetime,
     run_start: datetime,
 ) -> None:
-    """A search read to the end with every job handled moves on; the others keep their window."""
+    """A search read to the end with every job handled moves on; the others keep their window.
+
+    Waiting are those started but not finished, and those not reached that are behind;
+    a search that finished recently and simply was not reached does not count.
+    """
     next_since = {}
     for key, finished in searches_finished.items():
         if finished and key not in left_unfinished:
             next_since[key] = run_start - SEARCH_OVERLAP
         else:
             next_since[key] = windows.get(key, new_search_since)
-            counts.searches_waiting += 1
+            if key in started or run_start - next_since[key] > BEHIND_AFTER:
+                counts.searches_waiting += 1
     counts.search_since = {key: since.isoformat() for key, since in next_since.items()}
 
 
+def _record_stop(counts: SourceCounts, stop: RequestCapReached) -> None:
+    """A plain cap stop can follow the real reason, so it never clears a flag already set."""
+    counts.capped = True
+    counts.rate_limited = counts.rate_limited or isinstance(stop, RateLimited)
+    counts.network_error = counts.network_error or isinstance(stop, NetworkDown)
+
+
 def _stop_reason(counts: SourceCounts) -> str:
+    if counts.network_error:
+        return "network error"
     return "rate-limited" if counts.rate_limited else "request cap reached"

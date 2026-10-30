@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from app.ingestion.fetched_job import FetchedJob
 from app.ingestion.run import run_ingestion
 from app.ingestion.settings import Center, SearchSettings
-from app.ingestion.source import RateLimited, RequestCapReached
+from app.ingestion.source import NetworkDown, RateLimited, RequestCapReached
 from app.models.ingestion_run import IngestionRun
 
 SETTINGS = SearchSettings(
@@ -85,7 +85,7 @@ def test_run_stores_new_jobs_with_full_text(client, session):
     assert [s["source"] for s in detail["sources"]] == ["fake"]
     assert run.counts["fake"] == {
         "fetched": 2, "new": 2, "reopened": 0, "known": 0, "skipped_non_germany": 0, "detail_errors": 0,
-        "skipped_senior": 0, "skipped_by_cap": 0, "capped": False, "rate_limited": False,
+        "skipped_senior": 0, "skipped_by_cap": 0, "capped": False, "rate_limited": False, "network_error": False,
         "searches_waiting": 0, "search_since": None, "failed": None,
     }
     assert run.finished_at > run.started_at
@@ -499,6 +499,34 @@ def test_search_with_a_job_skipped_by_the_cap_stays_unfinished(client, session):
     assert datetime.fromisoformat(counts["search_since"]["a"]) > _days_ago(1)
 
 
+def test_only_searches_that_are_behind_count_as_waiting(session):
+    session.add(
+        IngestionRun(
+            started_at=_days_ago(1),
+            finished_at=_days_ago(1),
+            counts={
+                "fake": {
+                    "failed": None,
+                    "search_since": {
+                        "started": _days_ago(0).isoformat(),
+                        "not_reached": _days_ago(1).isoformat(),
+                        "behind": _days_ago(3).isoformat(),
+                    },
+                }
+            },
+        )
+    )
+    session.flush()
+    jobs = {"started": [_job("1", "Python Developer")], "not_reached": [], "behind": [], "new": []}
+
+    run = run_ingestion(session, SETTINGS, [ResumableSource(jobs, unfinished=list(jobs))])
+
+    counts = run.counts["fake"]
+    # "not_reached" is recent and found nothing, so it does not count, but keeps its window
+    assert counts["searches_waiting"] == 3
+    assert datetime.fromisoformat(counts["search_since"]["not_reached"]) == _about(_days_ago(1))
+
+
 def test_failed_run_keeps_the_previous_windows(session):
     run_ingestion(session, SETTINGS, [ResumableSource({"a": []})])
 
@@ -512,6 +540,61 @@ def test_failed_run_keeps_the_previous_windows(session):
     run_ingestion(session, SETTINGS, [source])
 
     assert source.windows[0][1]["a"] > _days_ago(1)
+
+
+def test_network_error_during_search_keeps_stored_jobs_and_the_search_stays_unfinished(client, session):
+    class DropsDuringSearch(ResumableSource):
+        def search(self, settings, since, windows):
+            yield from super().search(settings, since, windows)
+            raise NetworkDown()
+
+    jobs = {"a": [_job("1", "Python Developer")], "b": [_job("2", "Data Engineer")]}
+
+    run = run_ingestion(session, SETTINGS, [DropsDuringSearch(jobs, unfinished=["b"])])
+
+    counts = run.counts["fake"]
+    assert counts["failed"] is None
+    assert (counts["new"], counts["capped"], counts["network_error"], counts["rate_limited"]) == (2, True, True, False)
+    assert counts["searches_waiting"] == 1
+    assert datetime.fromisoformat(counts["search_since"]["b"]) == _about(_days_ago(7))
+    assert datetime.fromisoformat(counts["search_since"]["a"]) > _days_ago(1)
+    assert len(client.get("/jobs").json()) == 2
+
+
+def test_network_error_on_details_keeps_stored_jobs_and_leaves_the_rest_for_the_next_run(client, session):
+    class DropsOnDetails(ResumableSource):
+        def fetch_details(self, job):
+            if job.source_id == "2":
+                raise NetworkDown()
+            return super().fetch_details(job)
+
+    jobs = {"a": [_job("1", "Python Developer")], "b": [_job("2", "Data Engineer"), _job("3", "ML Engineer")]}
+
+    run = run_ingestion(session, SETTINGS, [DropsOnDetails(jobs)])
+
+    counts = run.counts["fake"]
+    assert counts["failed"] is None
+    assert (counts["new"], counts["skipped_by_cap"], counts["detail_errors"]) == (1, 2, 0)
+    assert (counts["capped"], counts["network_error"], counts["rate_limited"]) == (True, True, False)
+    assert counts["searches_waiting"] == 1
+    assert [j["title"] for j in client.get("/jobs").json()] == ["Python Developer"]
+
+
+def test_other_error_part_way_still_rolls_back_and_keeps_the_previous_windows(client, session):
+    class BreaksPartWay(ResumableSource):
+        def search(self, settings, since, windows):
+            yield from super().search(settings, since, windows)
+            raise RuntimeError("page does not parse")
+
+    first = run_ingestion(session, SETTINGS, [ResumableSource({"a": []})])
+
+    run = run_ingestion(session, SETTINGS, [BreaksPartWay({"a": [_job("1", "Python Developer")]})])
+
+    assert run.counts["fake"]["failed"] == "page does not parse"
+    assert client.get("/jobs").json() == []
+    source = ResumableSource({"a": []})
+    run_ingestion(session, SETTINGS, [source])
+    assert source.windows[0][1]["a"] == first.started_at - timedelta(hours=2)
 
 
 def test_windows_are_kept_per_source(session):

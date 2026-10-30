@@ -37,3 +37,7 @@ radius_km = 25
 [linkedin]
 max_requests_per_run = 120
 pause_seconds = [20, 30]
+# A search that takes longer stops and continues in the next run, so the others get their turn
+max_minutes_per_search = 20
+# Optional: a shorter title list for LinkedIn only. Every 8 titles add one search per place.
+# keywords = ["Python Developer", "Softwareentwickler"]

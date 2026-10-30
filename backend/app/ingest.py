@@ -46,7 +46,10 @@ def main(argv: list[str] | None = None) -> int:
                 f"{counts['detail_errors']} detail errors"
             )
             if counts["capped"]:
-                stop = "rate-limited" if counts["rate_limited"] else "reached the request cap"
+                if counts["network_error"]:
+                    stop = "network error"
+                else:
+                    stop = "rate-limited" if counts["rate_limited"] else "reached the request cap"
                 print(
                     f"  {name}: {stop}; {counts['skipped_by_cap']} new or reopened "
                     "jobs found so far (and any not yet searched) will be fetched by the next run"

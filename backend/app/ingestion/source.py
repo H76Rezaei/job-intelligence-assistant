@@ -14,6 +14,10 @@ class RateLimited(RequestCapReached):
     """The site refuses further requests (rate limit or block); handled like the cap."""
 
 
+class NetworkDown(RequestCapReached):
+    """The connection to the site failed (DNS, refused, reset, timeout); handled like the cap."""
+
+
 class Source(Protocol):
     """A job source. Adapters only fetch and map; they never touch the database.
 

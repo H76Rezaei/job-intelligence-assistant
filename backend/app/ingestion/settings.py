@@ -25,6 +25,10 @@ class LinkedInSettings:
     max_requests_per_run: int = 120
     # A random pause in this range (seconds) before every request after the first
     pause_seconds: tuple[float, float] = (20, 30)
+    # A search stops after this long, details included, so one large search cannot use up the run
+    max_minutes_per_search: float = 20
+    # A shorter title list for LinkedIn, where every search is slow; empty: the shared titles
+    keywords: list[str] = field(default_factory=list)
 
 
 @dataclass

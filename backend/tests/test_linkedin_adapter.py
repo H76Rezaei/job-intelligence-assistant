@@ -5,8 +5,9 @@ from pathlib import Path
 import httpx
 import pytest
 
+from app.ingestion.run import run_ingestion
 from app.ingestion.settings import Center, LinkedInSettings, SearchSettings
-from app.ingestion.source import RateLimited, RequestCapReached
+from app.ingestion.source import NetworkDown, RateLimited, RequestCapReached
 from app.ingestion.sources.linkedin import LinkedIn
 
 FIXTURES = Path(__file__).parent / "fixtures" / "linkedin"
@@ -115,6 +116,16 @@ def test_titles_are_grouped_and_searched_around_every_center_and_remote():
         (second, "Musterstadt", "10", None),
         (second, "Germany", None, "2"),
     ]
+
+
+def test_linkedin_titles_replace_the_shared_titles_when_set():
+    settings = replace(ONE_SEARCH, linkedin=LinkedInSettings(keywords=["AI Engineer"]))
+    requests = []
+
+    list(_adapter(requests).search(settings, since=_since(1)))
+
+    [search] = _search_requests(requests)
+    assert search.url.params["keywords"] == '"AI Engineer"'
 
 
 def test_search_asks_for_the_newest_jobs_since_the_window_start():
@@ -235,6 +246,40 @@ def test_block_during_details_stops_the_source_instead_of_trying_every_job():
         adapter.fetch_details(job)
 
 
+def _no_network(request):
+    raise httpx.ConnectError("getaddrinfo failed")
+
+
+def test_network_error_stops_the_source_for_this_run_without_a_retry():
+    requests = []
+
+    def handler(request):
+        requests.append(request)
+        _no_network(request)
+
+    adapter = LinkedIn(httpx.Client(transport=httpx.MockTransport(handler)), sleep=lambda seconds: None)
+
+    with pytest.raises(NetworkDown):
+        list(adapter.search(ONE_SEARCH, since=_since(1)))
+
+    assert len(requests) == 1
+
+
+def test_network_error_during_details_ends_the_searches_too():
+    requests = []
+    adapter = _adapter(requests)
+    found = adapter.search(replace(ONE_SEARCH, remote_germany=True), _since(7), windows={})
+    job = next(found)
+    adapter.client = httpx.Client(transport=httpx.MockTransport(_no_network))
+
+    with pytest.raises(NetworkDown):
+        adapter.fetch_details(job)
+    with pytest.raises(RequestCapReached):
+        list(found)
+
+    assert len(requests) == 1
+
+
 def test_other_unexpected_answer_fails_the_request():
     with pytest.raises(httpx.HTTPStatusError):
         list(_adapter([], responses=[httpx.Response(500)]).search(ONE_SEARCH, since=_since(1)))
@@ -275,6 +320,28 @@ def test_searches_report_whether_they_were_read_to_the_end():
     assert adapter.searches_finished == {CENTER_KEY: True, REMOTE_KEY: False}
 
 
+def test_network_drop_through_run_ingestion_keeps_the_stored_job_and_both_searches_wait(client, session):
+    details = []
+
+    def handler(request):
+        if request.url.path.endswith("/seeMoreJobPostings/search"):
+            return httpx.Response(200, text=_card("1", title="Python Developer") + _card("2", title="Data Engineer"))
+        details.append(request)
+        if len(details) > 1:
+            _no_network(request)
+        return httpx.Response(200, text=DETAIL)
+
+    adapter = LinkedIn(httpx.Client(transport=httpx.MockTransport(handler)), sleep=lambda seconds: None)
+
+    counts = run_ingestion(session, TWO_SEARCHES, [adapter]).counts["linkedin"]
+
+    assert counts["failed"] is None
+    assert (counts["new"], counts["skipped_by_cap"], counts["detail_errors"]) == (1, 1, 0)
+    assert (counts["capped"], counts["network_error"], counts["rate_limited"]) == (True, True, False)
+    assert counts["searches_waiting"] == 2
+    assert [j["title"] for j in client.get("/jobs").json()] == ["Python Developer"]
+
+
 def test_block_during_details_ends_the_searches_too():
     requests = []
     adapter = _adapter(requests)
@@ -288,3 +355,70 @@ def test_block_during_details_ends_the_searches_too():
         list(found)
 
     assert len(requests) == 1
+
+
+def _timed_adapter(requests, pages, limit_minutes=5):
+    """A LinkedIn adapter whose clock moves only with its pauses, 60 seconds each."""
+    now = [0.0]
+
+    def pause(seconds):
+        now[0] += seconds
+
+    def handler(request):
+        requests.append(request)
+        if request.url.path.endswith("/seeMoreJobPostings/search"):
+            return httpx.Response(200, text="".join(pages(request)))
+        return httpx.Response(200, text=DETAIL)
+
+    adapter = LinkedIn(
+        httpx.Client(transport=httpx.MockTransport(handler)), sleep=pause, clock=lambda: now[0]
+    )
+    settings = replace(
+        TWO_SEARCHES, linkedin=LinkedInSettings(pause_seconds=(60, 60), max_minutes_per_search=limit_minutes)
+    )
+    return adapter, settings
+
+
+def _endless_center_search(request):
+    """A full page for every request of the center search; one job in the remote search."""
+    if request.url.params["location"] == "Germany":
+        return [_card("remote-1", title="Remote Job")]
+    start = int(request.url.params["start"])
+    return [_card(f"{start + i}", title=f"Job {start + i}") for i in range(10)]
+
+
+def test_search_over_its_time_limit_stops_and_the_next_search_gets_its_turn():
+    requests = []
+    adapter, settings = _timed_adapter(requests, _endless_center_search)
+
+    jobs = list(adapter.search(settings, _since(7), windows={}))
+
+    center_pages = [r for r in _search_requests(requests) if r.url.params["location"] == "Testhausen"]
+    assert len(center_pages) == 6
+    assert "remote-1" in [j.source_id for j in jobs]
+    assert adapter.searches_finished == {CENTER_KEY: False, REMOTE_KEY: True}
+
+
+def test_time_for_details_counts_towards_the_search_limit():
+    requests = []
+    adapter, settings = _timed_adapter(requests, _endless_center_search, limit_minutes=3)
+    handled = []
+
+    for job in adapter.search(settings, _since(7), windows={}):
+        adapter.fetch_details(job)
+        handled.append(job.source_id)
+
+    assert handled == ["0", "1", "2", "remote-1"]
+    assert adapter.searches_finished == {CENTER_KEY: False, REMOTE_KEY: True}
+
+
+def test_search_stopped_by_the_time_limit_keeps_its_window_and_the_others_move_on(session):
+    adapter, settings = _timed_adapter([], _endless_center_search)
+
+    counts = run_ingestion(session, settings, [adapter]).counts["linkedin"]
+
+    assert counts["failed"] is None
+    assert counts["capped"] is False
+    assert counts["searches_waiting"] == 1
+    assert datetime.fromisoformat(counts["search_since"][CENTER_KEY]) < _since(6)
+    assert datetime.fromisoformat(counts["search_since"][REMOTE_KEY]) > _since(1)

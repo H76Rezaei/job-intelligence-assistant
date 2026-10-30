@@ -18,17 +18,27 @@ function JobsPage() {
   }
 
   useEffect(() => {
+    // "cancelled" ignores a slow response that arrives after the filter changed again
+    let cancelled = false
     const params = onlyNew ? { new_in_last_run: "true" } : undefined
     Promise.all([
       apiGet<JobListItem[]>("/jobs", params),
       apiGet<Application[]>("/applications"),
     ])
       .then(([jobList, applications]) => {
+        if (cancelled) return
         setJobs(jobList)
         setStatuses(new Map(applications.map((a) => [a.job_posting.id, a.status])))
       })
-      .catch((e) => setError(errorMessage(e)))
-      .finally(() => setLoading(false))
+      .catch((e) => {
+        if (!cancelled) setError(errorMessage(e))
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [onlyNew])
 
   if (loading) return <p>Loading...</p>

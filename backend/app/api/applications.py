@@ -73,11 +73,10 @@ def update_application(
     if application is None:
         raise HTTPException(status_code=404, detail="Application not found")
 
-    changes = {
-        field: value
-        for field, value in data.model_dump(exclude_unset=True).items()
-        if value is not None
-    }
+    changes = data.model_dump(exclude_unset=True)
+    # Null notes clear them, but an application always has a status
+    if changes.get("status") is None:
+        changes.pop("status", None)
     for field, value in changes.items():
         setattr(application, field, value)
     session.commit()

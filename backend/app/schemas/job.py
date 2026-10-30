@@ -1,7 +1,8 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
 
+from app.matching import normalize_company_name, normalize_title
 from app.models.job_posting import JobStatus, WorkMode
 from app.schemas.company import CompanyRead
 
@@ -14,6 +15,28 @@ class JobPaste(BaseModel):
     location: str | None = Field(default=None, max_length=255)
     employment_type: str | None = Field(default=None, max_length=50)
     work_mode: WorkMode | None = None
+
+    # An empty matching key would merge unrelated postings into one job
+    @field_validator("title")
+    @classmethod
+    def title_has_a_matching_key(cls, title: str) -> str:
+        if not normalize_title(title):
+            raise ValueError("title has no words")
+        return title
+
+    @field_validator("company_name")
+    @classmethod
+    def company_has_a_matching_key(cls, name: str) -> str:
+        if not normalize_company_name(name):
+            raise ValueError("company name has no words")
+        return name
+
+    @field_validator("description")
+    @classmethod
+    def description_has_text(cls, description: str) -> str:
+        if not description.strip():
+            raise ValueError("description is blank")
+        return description
 
 
 class JobSourceRead(BaseModel):

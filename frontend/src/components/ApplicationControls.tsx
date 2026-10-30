@@ -41,7 +41,6 @@ function ApplicationControls({ jobId, application, onChange }: Props) {
 
   function saveNotes() {
     if (!application) return
-    // PATCH ignores null, so an empty string is how notes get cleared
     run(apiPatch<Application>(`/applications/${application.id}`, { notes }))
   }
 

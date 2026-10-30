@@ -55,7 +55,7 @@ def normalize_url(url: str) -> str:
             parts.scheme.lower(),
             parts.netloc.lower(),
             parts.path.rstrip("/"),
-            urlencode(query),
+            urlencode(sorted(query)),
             "",
         )
     )

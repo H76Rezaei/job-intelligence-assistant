@@ -129,6 +129,30 @@ def test_patch_application_changes_status_and_notes(client, session):
     assert body["snapshot_id"] == created["snapshot_id"]
 
 
+def test_patch_with_null_notes_clears_them(client, session):
+    job, _ = _add_job(session)
+    created = client.post("/applications", json={"job_posting_id": job.id, "notes": "sent CV"}).json()
+
+    response = client.patch(f"/applications/{created['id']}", json={"notes": None})
+
+    assert response.status_code == 200
+    assert response.json()["notes"] is None
+    assert client.get(f"/applications/{created['id']}").json()["notes"] is None
+
+
+def test_patch_with_null_status_keeps_the_status(client, session):
+    job, _ = _add_job(session)
+    created = client.post(
+        "/applications", json={"job_posting_id": job.id, "status": "applied", "notes": "sent CV"}
+    ).json()
+
+    response = client.patch(f"/applications/{created['id']}", json={"status": None})
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "applied"
+    assert response.json()["notes"] == "sent CV"
+
+
 def test_patch_application_unknown_id_returns_404(client):
     response = client.patch("/applications/999999", json={"status": "applied"})
 

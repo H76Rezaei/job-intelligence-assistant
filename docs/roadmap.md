@@ -85,6 +85,8 @@ Ingestion means pulling postings from an outside source into your own database, 
 
 ### Step 3: Collectors (LinkedIn, StepStone, Xing, get-in-IT)
 
+**Changed 30 Oct 2026:** only LinkedIn is built for now. StepStone, Xing and get-in-IT moved to Later. The coverage check runs next, on the Bundesagentur and LinkedIn, and shows whether they are needed.
+
 1. Build collectors that read public job pages without a login, in this order: LinkedIn, StepStone, Xing, get-in-IT. They are ingestion sources in this repo, next to the Bundesagentur. LinkedIn is planned in `.scratch/linkedin/`.
 2. Before building each one, test the live site: blocking, terms and page structure.
 3. Low volume, one run a day each, and results go through the same storage and duplicate checks as every other source.
@@ -239,7 +241,7 @@ Nothing under Later has a date. Each item starts after Step 7, or earlier if dai
 | Later item | What it adds |
 | --- | --- |
 | Email reading | Reads LinkedIn alert emails and application status emails. Needs mailbox permission, so security comes first |
-| More job sources | Arbeitnow, freehire.me, Adzuna, employer career pages, added one layer at a time |
+| More job sources | StepStone, Xing, get-in-IT (moved from Step 3 on 30 Oct 2026), Arbeitnow, freehire.me, Adzuna, employer career pages, added one layer at a time |
 | Closed jobs | Detects jobs that disappear from their sources and marks them closed |
 | Interview preparation | Questions and topics for one application, from the pinned job and your profile |
 | Multiple users | Only if you decide you want it. Brings GDPR duties and per-user LLM cost |
@@ -278,6 +280,9 @@ Nothing under Later has a date. Each item starts after Step 7, or earlier if dai
 | 26 Oct 2026 | Collectors live in this public repo, not a private one. Step 3 runs on your computer only; Azure waits for Step 7. LinkedIn first, the other sites each after their own live check |
 | 26 Oct 2026 | LinkedIn: same titles, centers and remote search as every source, titles combined into `OR` groups, newest first. 120 requests per run, 20–30 s pause, one retry after 90 s on a 429. Each search keeps its own window in the run counts, and unfinished searches go first next run, so nothing is skipped |
 | 26 Oct 2026 | Senior jobs are never stored, from any source: only the title decides (Senior, Sr., Lead, Principal, Staff, Head of, Leiter, Teamleiter, configurable), titles that also say Junior, Mid or Einsteiger are kept, paste import is not filtered. Stored senior jobs without an application are removed once |
+| 26 Oct 2026 | LinkedIn on a 429: wait 5 minutes, then 15, then stop for the run (replaces one retry after 90 s, after the first real run was rate-limited) |
+| 30 Oct 2026 | LinkedIn: a network error stops the run like the cap and keeps stored jobs. A search stops after 20 minutes. LinkedIn has its own shorter title list in the private settings; the Bundesagentur keeps the full list |
+| 30 Oct 2026 | StepStone, Xing and get-in-IT moved to Later. Next: finish LinkedIn and run the coverage check, then Step 4 unless the check shows a source is needed |
 
 ## Definition of done
 
